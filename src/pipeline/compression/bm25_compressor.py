@@ -34,11 +34,21 @@ class BM25Compressor:
             # Keep top-N sentences in original order
             indexed_scores = list(enumerate(scores))
             indexed_scores.sort(key=lambda x: x[1], reverse=True)
-            top_indices = sorted(
-                [idx for idx, _ in indexed_scores[: self._sentences_per_chunk]]
+            top_indices = set(idx for idx, _ in indexed_scores[: self._sentences_per_chunk])
+            dropped_indices = set(range(len(sentences))) - top_indices
+
+            # Log kept/dropped sentences for Wave 3 faithfulness debugging
+            logger.debug(
+                "bm25_sentence_scores",
+                chunk_id=chunk.get("id", "unknown"),
+                query=query[:100],
+                scores={i: round(float(s), 4) for i, s in enumerate(scores)},
+                kept_indices=sorted(top_indices),
+                dropped_indices=sorted(dropped_indices),
+                dropped_sentences=[sentences[i][:80] for i in sorted(dropped_indices)],
             )
 
-            selected = [sentences[i] for i in top_indices]
+            selected = [sentences[i] for i in sorted(top_indices)]
             compressed.append({
                 **chunk,
                 "text_content": " ".join(selected),
