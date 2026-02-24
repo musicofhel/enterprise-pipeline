@@ -96,7 +96,94 @@ class PipelineOrchestrator:
             span.set_attribute("route", route_result["route"])
             span.set_attribute("skipped", route_result.get("skipped", False))
 
-        # 3. Retrieval (with optional multi-query expansion)
+        # 3. Route-dependent dispatch
+        route = route_result["route"]
+
+        if route == "escalate_human":
+            latency_ms = int((time.monotonic() - start_time) * 1000)
+            self._tracing.flush()
+            return QueryResponse(
+                answer=None,
+                trace_id=trace.trace_id,
+                sources=[],
+                metadata=QueryMetadata(
+                    route_used=route,
+                    model="none",
+                    latency_ms=latency_ms,
+                    tokens_used=0,
+                ),
+                fallback=True,
+                message="This query has been routed to a human agent. A support representative will follow up shortly.",
+            )
+
+        if route == "sql_structured_data":
+            raise NotImplementedError(
+                f"Route '{route}' requires a Text-to-SQL handler (Wave 3+). "
+                "Wire a SQL generation service into the orchestrator to support this route."
+            )
+
+        if route == "api_lookup":
+            raise NotImplementedError(
+                f"Route '{route}' requires an API lookup handler (Wave 3+). "
+                "Wire an external API service into the orchestrator to support this route."
+            )
+
+        if route == "direct_llm":
+            # Skip retrieval entirely — go straight to generation
+            with trace.span("retrieval") as span:
+                span.set_attribute("skipped", True)
+                span.set_attribute("reason", "direct_llm route — no retrieval needed")
+                reranked = []
+
+            with trace.span("compression") as span:
+                span.set_attribute("skipped", True)
+                span.set_attribute("tokens_before", 0)
+                span.set_attribute("tokens_after", 0)
+                budgeted = []
+
+            with trace.generation(
+                name="generation",
+                model=self._llm._model,
+                input=request.query,
+            ) as gen:
+                llm_result = await self._llm.generate(
+                    query=request.query,
+                    context_chunks=[],
+                    temperature=request.options.temperature,
+                    max_tokens=request.options.max_tokens,
+                )
+                gen.set_output(
+                    llm_result["answer"],
+                    usage={
+                        "input": llm_result["tokens_in"],
+                        "output": llm_result["tokens_out"],
+                    },
+                )
+
+            with trace.span("hallucination_check") as span:
+                span.set_attribute("skipped", True)
+                span.set_attribute("reason", "direct_llm route — no context to check against")
+                hall_result = {"score": None, "passed": True, "skipped": True}
+
+            latency_ms = int((time.monotonic() - start_time) * 1000)
+            self._tracing.flush()
+
+            return QueryResponse(
+                answer=llm_result["answer"],
+                trace_id=trace.trace_id,
+                sources=[],
+                metadata=QueryMetadata(
+                    route_used=route,
+                    faithfulness_score=None,
+                    model=llm_result["model"],
+                    latency_ms=latency_ms,
+                    tokens_used=llm_result["tokens_in"] + llm_result["tokens_out"],
+                ),
+            )
+
+        # route == "rag_knowledge_base" (default) — full retrieval path
+
+        # 4. Retrieval (with optional multi-query expansion)
         with trace.span("retrieval") as span:
             if self._query_expander:
                 from src.pipeline.retrieval.reciprocal_rank_fusion import reciprocal_rank_fusion

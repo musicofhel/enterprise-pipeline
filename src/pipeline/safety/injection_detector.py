@@ -64,13 +64,13 @@ INJECTION_PATTERNS: list[tuple[str, str]] = [
 
     # Base64/encoding evasion
     (r"(?i)(decode|decrypt|deobfuscate|base64|rot13)\s*:?\s+(this|the\s+following|below|decode|[A-Za-z0-9+/=]{6,})", "encoding_evasion"),
-    # Obfuscated "ignore" variants — leetspeak, dot-separated, space-inserted
+    # Obfuscated "ignore" variants — leetspeak, dot-separated, space-inserted, hyphen-separated
     (r"(?i)ign[o0]re\s+(all\s+)?prev[i1]", "encoding_evasion"),
-    (r"(?i)d\.?i\.?s\.?r\.?e\.?g\.?a\.?r\.?d", "encoding_evasion"),
+    # "disregard" / "ignore" with any separator between letters (dots, hyphens, spaces, underscores)
+    (r"(?i)d[\s.\-_]*i[\s.\-_]*s[\s.\-_]*r[\s.\-_]*e[\s.\-_]*g[\s.\-_]*a[\s.\-_]*r[\s.\-_]*d", "encoding_evasion"),
+    (r"(?i)i[\s.\-_]*g[\s.\-_]*n[\s.\-_]*o[\s.\-_]*r[\s.\-_]*e\b", "encoding_evasion"),
     (r"(?i)i\s*g\s+n\s*o\s*r\s*e\s+.{0,20}(instruct|prev|rules?|safety)", "encoding_evasion"),
     (r"[ÏïÎî][gĝ][nñ][öoóò][rŕ][êeéè]", "encoding_evasion"),
-    # Dot-separated letters forming "ignore"
-    (r"(?i)i\.g\.?n\.?o\.?r\.?e", "encoding_evasion"),
 
     # Payload injection
     (r"(?i)(execute|run|eval|exec)\s+(this|the\s+following)\s+(code|command|script|payload|python|javascript)", "code_injection"),
