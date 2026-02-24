@@ -7,6 +7,7 @@ from uuid import uuid4
 import structlog
 
 from src.models.schemas import QueryMetadata, QueryRequest, QueryResponse, SourceInfo
+from src.observability.logging import bind_trace_context, clear_trace_context
 
 if TYPE_CHECKING:
     from src.observability.tracing import TracingService
@@ -71,13 +72,26 @@ class PipelineOrchestrator:
             metadata={"tenant_id": request.tenant_id},
         )
 
-        # 1. Safety check (stub)
+        # Bind trace context for structured logging
+        bind_trace_context(trace_id=trace.trace_id, user_id=request.user_id)
+        logger.info("pipeline.request.received", query=request.query[:200], user_id=request.user_id)
+
+        # 1. Safety check
         with trace.span("input_safety") as span:
             safety_result = await self._safety.check_input(request.query, request.user_id)
             span.set_attribute("passed", safety_result["passed"])
             span.set_attribute("skipped", safety_result.get("skipped", False))
 
+            safety_latency = int((time.monotonic() - start_time) * 1000)
+            logger.info(
+                "pipeline.safety.checked",
+                passed=safety_result["passed"],
+                blocked_reason=safety_result.get("reason"),
+                latency_ms=safety_latency,
+            )
+
             if not safety_result["passed"]:
+                clear_trace_context()
                 return QueryResponse(
                     answer=None,
                     trace_id=trace.trace_id,
@@ -95,6 +109,13 @@ class PipelineOrchestrator:
             route_result = await self._router.route(request.query)
             span.set_attribute("route", route_result["route"])
             span.set_attribute("skipped", route_result.get("skipped", False))
+
+        logger.info(
+            "pipeline.routing.completed",
+            route=route_result["route"],
+            confidence=route_result.get("confidence"),
+            latency_ms=int((time.monotonic() - start_time) * 1000),
+        )
 
         # 3. Route-dependent dispatch
         route = route_result["route"]
@@ -220,6 +241,8 @@ class PipelineOrchestrator:
             reranked = await self._reranker.rerank(request.query, deduped)
             span.set_attribute("num_results_after_rerank", len(reranked))
 
+        logger.info("pipeline.retrieval.completed", num_results=len(reranked), latency_ms=int((time.monotonic() - start_time) * 1000))
+
         # 6. Compression
         with trace.span("compression") as span:
             from src.utils.tokens import count_tokens
@@ -235,6 +258,13 @@ class PipelineOrchestrator:
             span.set_attribute("tokens_after", tokens_after)
             span.set_attribute("compression_ratio", round(tokens_after / max(tokens_before, 1), 2))
             span.set_attribute("method", "bm25_subscoring")
+
+        logger.info(
+            "pipeline.compression.completed",
+            tokens_before=tokens_before,
+            tokens_after=tokens_after,
+            ratio=round(tokens_after / max(tokens_before, 1), 2),
+        )
 
         # 7. Generation
         with trace.generation(
@@ -256,13 +286,31 @@ class PipelineOrchestrator:
                 },
             )
 
-        # 8. Hallucination check (stub)
+        logger.info(
+            "pipeline.generation.completed",
+            model=llm_result["model"],
+            tokens_in=llm_result["tokens_in"],
+            tokens_out=llm_result["tokens_out"],
+            latency_ms=int((time.monotonic() - start_time) * 1000),
+        )
+
+        # 8. Hallucination check (HHEM)
         with trace.span("hallucination_check") as span:
-            context_text = "\n".join(c.get("text_content", "") for c in budgeted)
-            hall_result = await self._hallucination.check(llm_result["answer"], context_text)
+            context_chunks = [c.get("text_content", "") for c in budgeted]
+            hall_result = await self._hallucination.check(llm_result["answer"], context_chunks)
             span.set_attribute("score", hall_result["score"])
             span.set_attribute("passed", hall_result["passed"])
-            span.set_attribute("skipped", hall_result.get("skipped", False))
+            span.set_attribute("level", hall_result.get("level", "unknown"))
+            span.set_attribute("model", hall_result.get("model", "unknown"))
+            span.set_attribute("latency_ms", hall_result.get("latency_ms", 0))
+            span.set_attribute("skipped", False)
+
+        logger.info(
+            "pipeline.hallucination.checked",
+            score=hall_result["score"],
+            level=hall_result.get("level"),
+            latency_ms=hall_result.get("latency_ms"),
+        )
 
         latency_ms = int((time.monotonic() - start_time) * 1000)
 
@@ -278,7 +326,44 @@ class PipelineOrchestrator:
             for r in reranked
         ]
 
+        # Set trace-level scores and save
+        trace.set_score("faithfulness", hall_result["score"])
+        trace.save_local()
         self._tracing.flush()
+
+        # Handle hallucination check result
+        hall_level = hall_result.get("level", "pass")
+
+        if hall_level == "fail":
+            logger.info("pipeline.request.completed", total_latency_ms=latency_ms, fallback=True)
+            clear_trace_context()
+            return QueryResponse(
+                answer=None,
+                trace_id=trace.trace_id,
+                sources=sources if request.options.include_sources else [],
+                metadata=QueryMetadata(
+                    route_used=route_result["route"],
+                    faithfulness_score=hall_result["score"],
+                    model=llm_result["model"],
+                    latency_ms=latency_ms,
+                    tokens_used=llm_result["tokens_in"] + llm_result["tokens_out"],
+                ),
+                fallback=True,
+                message=(
+                    "I found relevant information but I'm not confident in my answer. "
+                    "Here are the source documents for your reference."
+                ),
+            )
+
+        disclaimer = None
+        if hall_level == "warn":
+            disclaimer = (
+                "Note: This response may not be fully supported by the retrieved documents. "
+                "Please verify critical details against the source materials."
+            )
+
+        logger.info("pipeline.request.completed", total_latency_ms=latency_ms, fallback=False)
+        clear_trace_context()
 
         return QueryResponse(
             answer=llm_result["answer"],
@@ -291,6 +376,7 @@ class PipelineOrchestrator:
                 latency_ms=latency_ms,
                 tokens_used=llm_result["tokens_in"] + llm_result["tokens_out"],
             ),
+            message=disclaimer,
         )
 
     async def ingest_file(

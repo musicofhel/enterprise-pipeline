@@ -48,3 +48,6 @@ en_core_web_sm*
 *.pdf
 *.docx
 downloads/
+
+# Local traces
+traces/

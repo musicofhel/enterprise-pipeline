@@ -60,10 +60,11 @@ class GenerationConfig(BaseModel):
 
 
 class HallucinationConfig(BaseModel):
-    model: str = "vectara/hhem-2.1"
+    model: str = "vectara/hallucination_evaluation_model"
     threshold_pass: float = 0.85
     threshold_warn: float = 0.70
     fallback_on_fail: bool = True
+    aggregation_method: str = "max"  # "max", "mean", or "min"
 
 
 class ObservabilityConfig(BaseModel):

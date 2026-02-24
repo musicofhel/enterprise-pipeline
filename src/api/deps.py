@@ -45,14 +45,14 @@ def get_tracing_service() -> TracingService:
     config = get_pipeline_config()
 
     if not config.observability.langfuse_enabled or not settings.langfuse_public_key:
-        return TracingService(client=None)
+        return TracingService(client=None, local_fallback=True)
 
     client = Langfuse(
         public_key=settings.langfuse_public_key,
         secret_key=settings.langfuse_secret_key.get_secret_value(),
         host=settings.langfuse_host,
     )
-    return TracingService(client=client)
+    return TracingService(client=client, local_fallback=True)
 
 
 def get_orchestrator() -> PipelineOrchestrator:
@@ -128,7 +128,12 @@ def get_orchestrator() -> PipelineOrchestrator:
             confidence_threshold=config.routing.confidence_threshold,
             embedding_service=embedding_service,
         ),
-        hallucination_checker=HallucinationChecker(),
+        hallucination_checker=HallucinationChecker(
+            model_name=config.hallucination.model,
+            threshold_pass=config.hallucination.threshold_pass,
+            threshold_warn=config.hallucination.threshold_warn,
+            aggregation_method=config.hallucination.aggregation_method,
+        ),
         tracing=tracing,
         chunker=chunker,
         metadata_extractor=metadata_extractor,

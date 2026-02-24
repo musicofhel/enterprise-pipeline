@@ -42,10 +42,11 @@ generation:
   fallback_model: claude-sonnet-4-5-20250929
 
 hallucination:
-  model: vectara/hhem-2.1
+  model: vectara/hallucination_evaluation_model
   threshold_pass: 0.85
   threshold_warn: 0.70
   fallback_on_fail: true
+  aggregation_method: max
 
 observability:
   langfuse_enabled: true
