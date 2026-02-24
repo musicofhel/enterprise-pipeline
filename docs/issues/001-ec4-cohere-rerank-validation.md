@@ -27,3 +27,14 @@ Wave 3 builds hallucination checks (HHEM) on top of reranked results. If reranki
 ## Blocks
 
 - Wave 3 output quality work — do NOT start HHEM integration until this is closed
+
+## Validation Plan (added Wave 3 pre-work)
+
+Integration test written: `tests/integration/test_cohere_rerank_validation.py`
+
+- Uses 10 realistic retrieval chunks (HR policy, financial data, facilities) with a remote work query
+- Measures MRR@10 before/after Cohere rerank-v3.5
+- Asserts >=15% MRR improvement
+- Also asserts top-3 reranked results overlap with ground-truth relevant chunks
+
+Run with: `COHERE_API_KEY=xxx pytest tests/integration/test_cohere_rerank_validation.py -m integration -v`

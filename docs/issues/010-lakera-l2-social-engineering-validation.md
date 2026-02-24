@@ -38,3 +38,14 @@ ISSUE-006 tracks the API key dependency for latency baselines. This issue specif
 
 - Wave 3 should not go to production without validating that indirect injection attacks are caught
 - Closing this issue requires ISSUE-006 to be resolved first
+
+## Validation Plan (added Wave 3 pre-work)
+
+Integration test written: `tests/integration/test_lakera_l2_social_engineering.py`
+
+- Sends all 5 social engineering payloads (A4, B1, B2, D2, D4) through full L1+L2 stack
+- Asserts all 5 are blocked by either L1 or L2
+- Also runs full 20-payload adversarial set and documents overall block rate
+- Target: 100% block rate with L2 enabled, minimum 95% to pass
+
+Run with: `LAKERA_API_KEY=xxx pytest tests/integration/test_lakera_l2_social_engineering.py -m integration -v`
