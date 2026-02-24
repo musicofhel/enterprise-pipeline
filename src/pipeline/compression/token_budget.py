@@ -10,7 +10,7 @@ logger = structlog.get_logger()
 
 
 class TokenBudgetEnforcer:
-    def __init__(self, max_tokens: int = 4000, model: str = "gpt-4o") -> None:
+    def __init__(self, max_tokens: int = 4000, model: str = "anthropic/claude-sonnet-4-5") -> None:
         self._max_tokens = max_tokens
         self._model = model
 

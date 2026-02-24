@@ -74,13 +74,13 @@ jobs:
 
       - name: Run eval tests
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: pytest tests/eval -v --tb=short -m eval
 
       - name: Run faithfulness eval (DeepEval)
-        if: env.OPENAI_API_KEY != ''
+        if: env.OPENROUTER_API_KEY != ''
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: pytest tests/eval/test_faithfulness.py -v --tb=short
 
       - name: Check regression

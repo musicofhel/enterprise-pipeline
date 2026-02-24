@@ -19,13 +19,16 @@ compression:
 
 routing:
   provider: semantic_router
+  embedding_model: all-MiniLM-L6-v2
+  embedding_provider: local
   default_route: rag_knowledge_base
-  confidence_threshold: 0.7
+  confidence_threshold: 0.15
 
 query_expansion:
   enabled: true
   method: multi_query
   num_queries: 3
+  model: anthropic/claude-haiku-4-5
 
 safety:
   injection_detection:
@@ -36,10 +39,12 @@ safety:
   pii_action: redact
 
 generation:
-  model: gpt-4o
+  provider: openrouter
+  base_url: https://openrouter.ai/api/v1
+  model: anthropic/claude-sonnet-4-5
   temperature: 0.1
   max_output_tokens: 1000
-  fallback_model: claude-sonnet-4-5-20250929
+  fallback_model: anthropic/claude-haiku-4-5
 
 hallucination:
   model: vectara/hallucination_evaluation_model

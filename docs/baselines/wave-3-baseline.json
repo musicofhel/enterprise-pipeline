@@ -3,19 +3,19 @@
     "wave": 3,
     "name": "Output Quality & Tracing",
     "captured_at": "2026-02-24",
-    "note": "HHEM runs real inference on CPU. DeepEval requires OPENAI_API_KEY. Langfuse traces to local JSON files (no server). Output schema enforces structure only. All logs are structured JSON."
+    "note": "HHEM runs real inference on CPU. DeepEval requires OPENROUTER_API_KEY. Langfuse traces to local JSON files (no server). Output schema enforces structure only. All logs are structured JSON."
   },
   "exit_criteria": {
     "ec1_hhem_faithfulness_on_eval_set": {
       "status": "PARTIAL",
       "detail": {
         "target": ">=0.92 on eval set of 500 queries",
-        "actual": "Real HHEM inference operational. 7 unit tests pass with real model. Eval set of 500 queries requires OPENAI_API_KEY for LLM-generated answers.",
+        "actual": "Real HHEM inference operational. 7 unit tests pass with real model. Eval set of 500 queries requires OPENROUTER_API_KEY for LLM-generated answers.",
         "hhem_model": "vectara/hallucination_evaluation_model",
         "aggregation_method": "max",
         "threshold_pass": 0.85,
         "threshold_warn": 0.70,
-        "note": "HHEM model loads and runs real inference on CPU. Faithfulness scoring is functional. The 500-query eval requires an LLM to generate answers to measure, which needs OPENAI_API_KEY. Unit tests verify grounded answers score high and hallucinated answers score low."
+        "note": "HHEM model loads and runs real inference on CPU. Faithfulness scoring is functional. The 500-query eval requires an LLM to generate answers to measure, which needs OPENROUTER_API_KEY. Unit tests verify grounded answers score high and hallucinated answers score low."
       }
     },
     "ec2_deepeval_ci_regression_gate": {
@@ -30,8 +30,8 @@
           "edge_case": 5
         },
         "ci_workflow": ".github/workflows/eval.yaml",
-        "skip_reason": "Requires OPENAI_API_KEY for claim decomposition",
-        "note": "Test suite and CI integration are complete. 20 realistic test cases in golden_dataset/faithfulness_tests.jsonl. Tests skip gracefully when OPENAI_API_KEY is unavailable."
+        "skip_reason": "Requires OPENROUTER_API_KEY for claim decomposition",
+        "note": "Test suite and CI integration are complete. 20 realistic test cases in golden_dataset/faithfulness_tests.jsonl. Tests skip gracefully when OPENROUTER_API_KEY is unavailable."
       }
     },
     "ec3_langfuse_trace_coverage": {

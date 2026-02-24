@@ -100,7 +100,7 @@ def test_trace_contains_all_required_fields():
         span.set_attribute("compression_ratio", 0.61)
         span.set_attribute("method", "bm25_subscoring")
 
-    with trace.generation("generation", model="gpt-4o") as gen:
+    with trace.generation("generation", model="anthropic/claude-sonnet-4-5") as gen:
         gen.set_output("Test answer", usage={"input": 2800, "output": 350})
 
     with trace.span("hallucination_check") as span:
@@ -127,7 +127,7 @@ def test_all_spans_have_timing():
 
     for span_name in REQUIRED_SPANS:
         if span_name == "generation":
-            with trace.generation(span_name, model="gpt-4o") as gen:
+            with trace.generation(span_name, model="anthropic/claude-sonnet-4-5") as gen:
                 gen.set_output("answer", usage={"input": 100, "output": 50})
         else:
             with trace.span(span_name) as span:
@@ -212,7 +212,7 @@ def test_trace_schema_matches_tech_spec():
         span.set_attribute("compression_ratio", 0.61)
         span.set_attribute("method", "bm25_subscoring")
 
-    with trace.generation("generation", model="gpt-4o") as gen:
+    with trace.generation("generation", model="anthropic/claude-sonnet-4-5") as gen:
         gen.set_output("Test answer about remote work policy.", usage={"input": 2800, "output": 350})
 
     with trace.span("hallucination_check") as span:

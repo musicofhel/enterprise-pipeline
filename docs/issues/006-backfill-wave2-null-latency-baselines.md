@@ -9,8 +9,8 @@
 
 `docs/baselines/wave-2-baseline.json` has null values for:
 - `lakera_guard_l2.p50` / `p95` — requires LAKERA_API_KEY
-- `query_routing.p50` / `p95` — requires OPENAI_API_KEY for embeddings
-- `query_expansion.p50` / `p95` — requires OPENAI_API_KEY for LLM calls
+- `query_routing.p50` / `p95` — requires OPENROUTER_API_KEY for embeddings
+- `query_expansion.p50` / `p95` — requires OPENROUTER_API_KEY for LLM calls
 
 These are the "before" numbers that Wave 6 dashboards need for latency budgeting.
 

@@ -25,7 +25,7 @@ Wave 2 EC-4 ("Multi-query expansion improves recall by >=20%") was validated wit
 ## Blocked By
 
 - Qdrant with ingested documents
-- Valid OPENAI_API_KEY in .env
+- Valid OPENROUTER_API_KEY in .env
 
 ## Blocks
 

@@ -50,13 +50,13 @@ from src.pipeline.safety.pii_detector import PIIDetector
 def build_orchestrator() -> PipelineOrchestrator:
     """Build orchestrator with mocked external deps, real local components."""
 
-    # Mock OpenAI client for embeddings + LLM
-    openai_client = AsyncMock()
+    # Mock OpenRouter client for embeddings + LLM (OpenAI-compatible API)
+    openrouter_client = AsyncMock()
     embedding_response = MagicMock()
     embedding_item = MagicMock()
     embedding_item.embedding = [0.1] * 1536
     embedding_response.data = [embedding_item]
-    openai_client.embeddings.create.return_value = embedding_response
+    openrouter_client.embeddings.create.return_value = embedding_response
 
     # Mock LLM response — realistic answer about remote work
     chat_response = MagicMock()
@@ -72,7 +72,7 @@ def build_orchestrator() -> PipelineOrchestrator:
     usage.prompt_tokens = 2400
     usage.completion_tokens = 280
     chat_response.usage = usage
-    openai_client.chat.completions.create.return_value = chat_response
+    openrouter_client.chat.completions.create.return_value = chat_response
 
     # Mock Qdrant — return realistic chunks about remote work policy
     qdrant_client = AsyncMock()
@@ -127,14 +127,14 @@ def build_orchestrator() -> PipelineOrchestrator:
     cohere_client.rerank.return_value = rerank_response
 
     # Real local components
-    embedding_service = EmbeddingService(client=openai_client, model="text-embedding-3-small")
+    embedding_service = EmbeddingService(client=openrouter_client, model="text-embedding-3-small")
     vector_store = VectorStore(client=qdrant_client)
     deduplicator = Deduplicator(threshold=0.95)
     reranker = CohereReranker(client=cohere_client, top_n=3)
     bm25_compressor = BM25Compressor(sentences_per_chunk=5)
-    token_budget = TokenBudgetEnforcer(max_tokens=3000, model="gpt-4o")
+    token_budget = TokenBudgetEnforcer(max_tokens=3000, model="anthropic/claude-sonnet-4-5")
     llm_client = LLMClient(
-        client=openai_client, model="gpt-4o", temperature=0.1, max_output_tokens=1024
+        client=openrouter_client, model="anthropic/claude-sonnet-4-5", temperature=0.1, max_output_tokens=1024
     )
     tracing = TracingService(client=None, local_fallback=True)
     chunker = DocumentChunker(strategy="by_title", max_characters=500, overlap=50)
@@ -284,13 +284,13 @@ async def main() -> None:
         ("2.  PII Detection (L1)", "REAL", "Regex patterns for SSN/email/phone/CC"),
         ("3.  Lakera Guard (L2)", "SKIPPED", "No LAKERA_API_KEY"),
         ("4.  Semantic Routing", "REAL", "Cosine sim (deterministic embeddings → default route)"),
-        ("5.  Embedding", "MOCKED", "Requires OPENAI_API_KEY"),
+        ("5.  Embedding", "MOCKED", "Requires OPENROUTER_API_KEY"),
         ("6.  Qdrant Retrieval", "MOCKED", "Requires live Qdrant server"),
         ("7.  Deduplication", "REAL", "numpy cosine sim on returned vectors"),
         ("8.  Cohere Reranking", "MOCKED", "Requires COHERE_API_KEY"),
         ("9.  BM25 Compression", "REAL", "spaCy + rank-bm25 sentence sub-scoring"),
         ("10. Token Budget", "REAL", "tiktoken enforcement to max_tokens"),
-        ("11. LLM Generation", "MOCKED", "Requires OPENAI_API_KEY"),
+        ("11. LLM Generation", "MOCKED", "Requires OPENROUTER_API_KEY"),
         ("12. HHEM Hallucination Check", "REAL", "vectara/hallucination_evaluation_model on CPU"),
     ]
     for name, status, note in stages:

@@ -12,7 +12,7 @@
 | # | Criterion | Target | Actual | Status |
 |---|-----------|--------|--------|--------|
 | EC-1 | HHEM faithfulness >=0.92 on eval set | >=0.92 on 500 queries | Real HHEM inference operational, 7 tests pass | PARTIAL |
-| EC-2 | DeepEval CI regression gate | Blocks build on >5% regression | 20 golden cases, CI wired, skips without OPENAI_API_KEY | PASS |
+| EC-2 | DeepEval CI regression gate | Blocks build on >5% regression | 20 golden cases, CI wired, skips without OPENROUTER_API_KEY | PASS |
 | EC-3 | 100% LLM calls traced | All spans present | 6 spans with timing, local JSON fallback | PASS |
 | EC-4 | All logs structured JSON | No string-formatted logs | 8 structured events, 0 print() in src/ | PASS |
 | EC-5 | E2E latency <3s (p95) | <3s | 1237ms including HHEM cold start | PASS |
@@ -41,7 +41,7 @@
 
 **Mocked LLM answers correctly fail HHEM.** The E2E trace produces a faithfulness score of 0.0715 — HHEM correctly detects that the mocked answer isn't well-grounded in the mocked context chunks. This is actually reassuring: the model isn't just rubber-stamping. In production with real LLM answers generated from real context, scores will be much higher.
 
-**DeepEval requires an LLM for claim decomposition.** The `FaithfulnessMetric` breaks answers into individual claims and checks each against context. This requires an LLM (OpenAI by default) — it's not a local-only metric like HHEM. The test suite properly skips with a clear message when OPENAI_API_KEY is absent.
+**DeepEval requires an LLM for claim decomposition.** The `FaithfulnessMetric` breaks answers into individual claims and checks each against context. This requires an LLM (via OpenRouter) — it's not a local-only metric like HHEM. The test suite properly skips with a clear message when OPENROUTER_API_KEY is absent.
 
 ---
 
@@ -57,8 +57,8 @@
 
 | Item | Signal from Wave 3 | Recommendation |
 |------|-------------------|----------------|
-| EC-1 full validation | HHEM inference works, need 500-query eval set | **Generate eval set when OPENAI_API_KEY is available.** Use LLM to answer 500 golden queries against retrieved context, then score with HHEM. |
-| DeepEval CI execution | Test suite ready, needs OPENAI_API_KEY | **Wire OPENAI_API_KEY as CI secret.** Tests will run automatically on push. |
+| EC-1 full validation | HHEM inference works, need 500-query eval set | **Generate eval set when OPENROUTER_API_KEY is available.** Use LLM to answer 500 golden queries against retrieved context, then score with HHEM. |
+| DeepEval CI execution | Test suite ready, needs OPENROUTER_API_KEY | **Wire OPENROUTER_API_KEY as CI secret.** Tests will run automatically on push. |
 | Langfuse server integration | Local fallback validated | **Deploy Langfuse via Docker Compose (already configured).** TracingService will auto-connect. |
 | Output schema in orchestrator | Enforcer built, not wired into orchestrator | **Wire `OutputSchemaEnforcer.enforce()` after LLM generation in orchestrator.** Currently schema enforcement is available but not called in the pipeline flow. |
 | HHEM on GPU | CPU inference at ~150ms warm | **Deploy on T4 GPU for <50ms inference.** CPU is fine for testing and low-traffic. |

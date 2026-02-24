@@ -20,6 +20,7 @@ from src.pipeline.quality import HallucinationChecker
 from src.pipeline.reranking.cohere_reranker import CohereReranker
 from src.pipeline.retrieval.deduplication import Deduplicator
 from src.pipeline.retrieval.embeddings import EmbeddingService
+from src.pipeline.retrieval.local_embeddings import LocalEmbeddingService
 from src.pipeline.retrieval.query_expander import QueryExpander
 from src.pipeline.retrieval.vector_store import VectorStore
 from src.pipeline.routing import QueryRouter
@@ -59,8 +60,11 @@ def get_orchestrator() -> PipelineOrchestrator:
     settings = get_settings()
     config = get_pipeline_config()
 
-    # External clients
-    openai_client = AsyncOpenAI(api_key=settings.openai_api_key.get_secret_value())
+    # LLM client — OpenRouter (OpenAI-compatible API)
+    openrouter_client = AsyncOpenAI(
+        base_url=config.generation.base_url,
+        api_key=settings.openrouter_api_key.get_secret_value(),
+    )
     qdrant_client = AsyncQdrantClient(
         host=settings.qdrant_host,
         port=settings.qdrant_port,
@@ -68,9 +72,9 @@ def get_orchestrator() -> PipelineOrchestrator:
     )
     cohere_client = cohere.AsyncClientV2(api_key=settings.cohere_api_key.get_secret_value())
 
-    # Services
+    # Retrieval embeddings — via OpenRouter (text-embedding-3-small is available)
     embedding_service = EmbeddingService(
-        client=openai_client,
+        client=openrouter_client,
         model=config.chunking.provider if config.chunking.provider != "unstructured" else "text-embedding-3-small",
     )
     vector_store = VectorStore(client=qdrant_client)
@@ -82,7 +86,7 @@ def get_orchestrator() -> PipelineOrchestrator:
         model=config.generation.model,
     )
     llm_client = LLMClient(
-        client=openai_client,
+        client=openrouter_client,
         model=config.generation.model,
         temperature=config.generation.temperature,
         max_output_tokens=config.generation.max_output_tokens,
@@ -107,11 +111,14 @@ def get_orchestrator() -> PipelineOrchestrator:
         pii_detector=PIIDetector(),
     )
 
-    # Query expansion — uses the same OpenAI client
+    # Routing embeddings — local sentence-transformers (no API key needed)
+    local_embeddings = LocalEmbeddingService(model_name=config.routing.embedding_model)
+
+    # Query expansion — uses OpenRouter with a cheaper model
     query_expander = QueryExpander(
-        client=openai_client,
+        client=openrouter_client,
         num_queries=config.query_expansion.num_queries,
-        model=config.generation.model,
+        model=config.query_expansion.model,
     ) if config.query_expansion.enabled else None
 
     return PipelineOrchestrator(
@@ -126,7 +133,7 @@ def get_orchestrator() -> PipelineOrchestrator:
         query_router=QueryRouter(
             default_route=config.routing.default_route,
             confidence_threshold=config.routing.confidence_threshold,
-            embedding_service=embedding_service,
+            embed_fn=local_embeddings.embed_texts,
         ),
         hallucination_checker=HallucinationChecker(
             model_name=config.hallucination.model,

@@ -19,7 +19,7 @@ class LLMClient:
     def __init__(
         self,
         client: AsyncOpenAI,
-        model: str = "gpt-4o",
+        model: str = "anthropic/claude-sonnet-4-5",
         temperature: float = 0.1,
         max_output_tokens: int = 1000,
         system_prompt_path: Path = DEFAULT_PROMPT_PATH,

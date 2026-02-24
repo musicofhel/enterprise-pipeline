@@ -286,7 +286,7 @@ class TestEC5TokenBudgetEnforcement:
         """Generate 1000 random chunk sets, verify budget holds for all."""
         random.seed(42)
         budget = 4000
-        enforcer = TokenBudgetEnforcer(max_tokens=budget, model="gpt-4o")
+        enforcer = TokenBudgetEnforcer(max_tokens=budget, model="anthropic/claude-sonnet-4-5")
         violations = 0
 
         for _trial in range(1000):

@@ -12,7 +12,7 @@ from src.config.settings import Settings
 @pytest.fixture
 def settings() -> Settings:
     return Settings(
-        openai_api_key="sk-test",  # type: ignore[arg-type]
+        openrouter_api_key="sk-or-test",  # type: ignore[arg-type]
         cohere_api_key="test-cohere",  # type: ignore[arg-type]
         qdrant_host="localhost",
         qdrant_port=6333,

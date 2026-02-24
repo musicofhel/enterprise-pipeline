@@ -11,7 +11,7 @@ def test_default_config():
     assert config.chunking.strategy == "by_title"
     assert config.retrieval.top_k == 20
     assert config.compression.max_total_tokens == 4000
-    assert config.generation.model == "gpt-4o"
+    assert config.generation.model == "anthropic/claude-sonnet-4-5"
 
 
 def test_load_config_from_yaml():

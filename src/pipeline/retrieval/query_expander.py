@@ -29,7 +29,7 @@ class QueryExpander:
         self,
         client: AsyncOpenAI,
         num_queries: int = 3,
-        model: str = "gpt-4o",
+        model: str = "anthropic/claude-haiku-4-5",
     ) -> None:
         self._client = client
         self._num_queries = num_queries

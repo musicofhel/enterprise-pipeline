@@ -37,7 +37,7 @@ def test_query_response():
         ],
         metadata=QueryMetadata(
             route_used="rag_knowledge_base",
-            model="gpt-4o",
+            model="anthropic/claude-sonnet-4-5",
             latency_ms=1000,
             tokens_used=500,
         ),

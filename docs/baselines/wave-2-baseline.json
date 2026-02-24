@@ -44,7 +44,7 @@
         "queries_correct": 500,
         "routes": 5,
         "target": "> 95%",
-        "note": "Deterministic embeddings. Real accuracy requires OpenAI embeddings against production query distribution."
+        "note": "Deterministic embeddings. Real accuracy requires local sentence-transformers embeddings against production query distribution."
       }
     },
     "ec4_multi_query_recall_improvement": {
@@ -97,19 +97,19 @@
     "query_routing": {
       "p50": null,
       "p95": null,
-      "note": "Requires OpenAI embeddings. Expected ~50-100ms for embed + cosine sim."
+      "note": "Now uses local sentence-transformers (all-MiniLM-L6-v2). Expected ~10-50ms for embed + cosine sim."
     },
     "query_expansion": {
       "p50": null,
       "p95": null,
-      "note": "Requires OpenAI LLM call. Expected ~500-1500ms."
+      "note": "Requires OpenRouter LLM call. Expected ~500-1500ms."
     }
   },
   "cost_metrics": {
     "injection_detection_cost_per_query": "$0.00 (regex, no API)",
     "pii_detection_cost_per_query": "$0.00 (regex, no API)",
     "lakera_guard_cost_per_query": "~$0.001 (estimated from Lakera pricing)",
-    "routing_embedding_cost_per_query": "~$0.0001 (single text-embedding-3-small call)",
-    "expansion_llm_cost_per_query": "~$0.002 (3 rephrasings via gpt-4o)"
+    "routing_embedding_cost_per_query": "$0.00 (local sentence-transformers, no API call)",
+    "expansion_llm_cost_per_query": "~$0.001 (3 rephrasings via anthropic/claude-haiku-4-5)"
   }
 }

@@ -138,7 +138,7 @@ def measure_compression() -> dict:
 def measure_token_budget() -> dict:
     random.seed(42)
     budget = 4000
-    enforcer = TokenBudgetEnforcer(max_tokens=budget, model="gpt-4o")
+    enforcer = TokenBudgetEnforcer(max_tokens=budget, model="anthropic/claude-sonnet-4-5")
     violations = 0
     actual_totals = []
 
@@ -293,11 +293,11 @@ def main() -> None:
     for name, ec in baseline["exit_criteria"].items():
         print(f"  {ec['status']:20s}  {name}")
 
-    print(f"\n  Baselines for Wave 6 dashboards:")
+    print("\n  Baselines for Wave 6 dashboards:")
     b = baseline["baselines_for_wave6_dashboards"]
     print(f"    Context tokens: {b['avg_context_tokens_before_compression']} -> {b['avg_context_tokens_after_compression']} (after compression)")
     print(f"    Token budget utilization: avg={b['token_budget_utilization']['avg']}, p95={b['token_budget_utilization']['p95']}, budget={b['token_budget_utilization']['budget']}")
-    print(f"    Cosine sim / latency: pending (needs live services)")
+    print("    Cosine sim / latency: pending (needs live services)")
 
 
 if __name__ == "__main__":

@@ -108,11 +108,11 @@ async def test_expand_strips_whitespace_from_lines(mock_client: AsyncMock):
 @pytest.mark.asyncio
 async def test_expand_passes_correct_model(mock_client: AsyncMock):
     """The configured model should be forwarded to the OpenAI client."""
-    expander = QueryExpander(client=mock_client, num_queries=2, model="gpt-4o-mini")
+    expander = QueryExpander(client=mock_client, num_queries=2, model="anthropic/claude-haiku-4-5")
     await expander.expand("test")
 
     call_kwargs = mock_client.chat.completions.create.call_args.kwargs
-    assert call_kwargs["model"] == "gpt-4o-mini"
+    assert call_kwargs["model"] == "anthropic/claude-haiku-4-5"
 
 
 @pytest.mark.asyncio

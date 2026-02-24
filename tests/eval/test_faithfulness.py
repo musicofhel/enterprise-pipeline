@@ -10,9 +10,9 @@ Categories:
   - edge_case (5): Empty context, very long context, ambiguous queries
 
 Requirements:
-  - OPENAI_API_KEY must be set (DeepEval FaithfulnessMetric uses an LLM for claim decomposition)
+  - OPENROUTER_API_KEY must be set (DeepEval FaithfulnessMetric uses an LLM for claim decomposition)
   - Run: pytest tests/eval/test_faithfulness.py --deepeval -v
-  - Or locally: OPENAI_API_KEY=xxx pytest tests/eval/test_faithfulness.py -v
+  - Or locally: OPENROUTER_API_KEY=xxx pytest tests/eval/test_faithfulness.py -v
 
 CI behavior: Fails build if average faithfulness drops below 0.85 OR
 any single test case drops more than 10% from its expected baseline.
@@ -25,15 +25,15 @@ from pathlib import Path
 
 import pytest
 
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 GOLDEN_DATASET_PATH = Path("golden_dataset/faithfulness_tests.jsonl")
 
 # Skip entire module if no API key — DeepEval FaithfulnessMetric requires LLM
 pytestmark = [
     pytest.mark.eval,
     pytest.mark.skipif(
-        not OPENAI_API_KEY,
-        reason="OPENAI_API_KEY not set — DeepEval FaithfulnessMetric requires LLM for claim decomposition",
+        not OPENROUTER_API_KEY,
+        reason="OPENROUTER_API_KEY not set — DeepEval FaithfulnessMetric requires LLM for claim decomposition",
     ),
 ]
 
@@ -69,7 +69,7 @@ class TestFaithfulnessGrounded:
         from deepeval.metrics import FaithfulnessMetric
         from deepeval.test_case import LLMTestCase
 
-        metric = FaithfulnessMetric(threshold=0.7, model="gpt-4o-mini")
+        metric = FaithfulnessMetric(threshold=0.7, model="anthropic/claude-haiku-4-5")
         test_case = LLMTestCase(
             input=case["query"],
             actual_output=case["expected_answer"],
@@ -88,7 +88,7 @@ class TestFaithfulnessHallucinations:
         from deepeval.metrics import FaithfulnessMetric
         from deepeval.test_case import LLMTestCase
 
-        metric = FaithfulnessMetric(threshold=0.7, model="gpt-4o-mini")
+        metric = FaithfulnessMetric(threshold=0.7, model="anthropic/claude-haiku-4-5")
         test_case = LLMTestCase(
             input=case["query"],
             actual_output=case["expected_answer"],
@@ -111,7 +111,7 @@ class TestFaithfulnessPartial:
         from deepeval.metrics import FaithfulnessMetric
         from deepeval.test_case import LLMTestCase
 
-        metric = FaithfulnessMetric(threshold=0.3, model="gpt-4o-mini")
+        metric = FaithfulnessMetric(threshold=0.3, model="anthropic/claude-haiku-4-5")
         test_case = LLMTestCase(
             input=case["query"],
             actual_output=case["expected_answer"],
@@ -134,7 +134,7 @@ class TestFaithfulnessEdgeCases:
             pytest.skip("Empty context — FaithfulnessMetric requires retrieval_context")
             return
 
-        metric = FaithfulnessMetric(threshold=0.3, model="gpt-4o-mini")
+        metric = FaithfulnessMetric(threshold=0.3, model="anthropic/claude-haiku-4-5")
         test_case = LLMTestCase(
             input=case["query"],
             actual_output=case["expected_answer"],
@@ -155,7 +155,7 @@ class TestFaithfulnessRegression:
         scores = []
 
         for case in grounded_cases:
-            metric = FaithfulnessMetric(threshold=0.7, model="gpt-4o-mini")
+            metric = FaithfulnessMetric(threshold=0.7, model="anthropic/claude-haiku-4-5")
             test_case = LLMTestCase(
                 input=case["query"],
                 actual_output=case["expected_answer"],

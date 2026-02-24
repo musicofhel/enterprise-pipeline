@@ -3,7 +3,7 @@ from __future__ import annotations
 import tiktoken
 
 
-def count_tokens(text: str, model: str = "gpt-4o") -> int:
+def count_tokens(text: str, model: str = "anthropic/claude-sonnet-4-5") -> int:
     """Count the number of tokens in text for a given model."""
     try:
         encoding = tiktoken.encoding_for_model(model)
@@ -12,7 +12,7 @@ def count_tokens(text: str, model: str = "gpt-4o") -> int:
     return len(encoding.encode(text))
 
 
-def truncate_to_token_budget(text: str, max_tokens: int, model: str = "gpt-4o") -> str:
+def truncate_to_token_budget(text: str, max_tokens: int, model: str = "anthropic/claude-sonnet-4-5") -> str:
     """Truncate text to fit within a token budget."""
     try:
         encoding = tiktoken.encoding_for_model(model)

@@ -30,14 +30,17 @@ class CompressionConfig(BaseModel):
 
 class RoutingConfig(BaseModel):
     provider: str = "semantic_router"
+    embedding_model: str = "all-MiniLM-L6-v2"
+    embedding_provider: str = "local"
     default_route: str = "rag_knowledge_base"
-    confidence_threshold: float = 0.7
+    confidence_threshold: float = 0.15
 
 
 class QueryExpansionConfig(BaseModel):
     enabled: bool = True
     method: str = "multi_query"
     num_queries: int = 3
+    model: str = "anthropic/claude-haiku-4-5"
 
 
 class InjectionDetectionConfig(BaseModel):
@@ -53,10 +56,12 @@ class SafetyConfig(BaseModel):
 
 
 class GenerationConfig(BaseModel):
-    model: str = "gpt-4o"
+    provider: str = "openrouter"
+    base_url: str = "https://openrouter.ai/api/v1"
+    model: str = "anthropic/claude-sonnet-4-5"
     temperature: float = 0.1
     max_output_tokens: int = 1000
-    fallback_model: str = "claude-sonnet-4-5-20250929"
+    fallback_model: str = "anthropic/claude-haiku-4-5"
 
 
 class HallucinationConfig(BaseModel):

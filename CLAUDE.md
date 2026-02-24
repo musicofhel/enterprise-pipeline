@@ -12,14 +12,14 @@ Production-grade RAG pipeline built in 3 phases across 8 waves. Python + FastAPI
 
 - **Wave 1 (Retrieval Quality Foundation):** Complete. Tag: `wave-1-complete`.
 - **Wave 2 (Input Safety & Query Intelligence):** Complete. Tag: `wave-2-complete`. Verification follow-up complete.
-- **Wave 3 (Output Quality & Tracing):** Complete. Tag: `wave-3-complete`. 155 tests passing (21 skipped — need OPENAI_API_KEY). Lint and typecheck clean (0 new errors).
+- **Wave 3 (Output Quality & Tracing):** Complete. Tag: `wave-3-complete`. 155 tests passing (21 skipped — need OPENROUTER_API_KEY). Lint and typecheck clean (0 new errors).
 
 ### Wave 3 Deliverables
 
 | # | Deliverable | Status | Tests |
 |---|-------------|--------|-------|
 | 3.1 | HHEM Hallucination Detection | Real CPU inference, `vectara/hallucination_evaluation_model` | 7 tests, real model |
-| 3.2 | DeepEval Faithfulness CI | 20 golden dataset cases, CI wired | 21 tests (skipped without OPENAI_API_KEY) |
+| 3.2 | DeepEval Faithfulness CI | 20 golden dataset cases, CI wired | 21 tests (skipped without OPENROUTER_API_KEY) |
 | 3.3 | Langfuse Tracing | Local JSON fallback matching tech spec Section 2.2 | 6 tests |
 | 3.4 | Output Schema Enforcement | Per-route JSON schema validation with jsonschema | 10 tests |
 | 3.5 | Structured Logging | structlog JSON, auto trace_id binding, 8 pipeline events | 4 tests |
@@ -36,10 +36,10 @@ src/
 │   ├── orchestrator.py             # Central pipeline coordinator (12 stages)
 │   ├── safety/                     # L1 regex injection + PII detection
 │   ├── routing/                    # Semantic query router (cosine sim + YAML routes)
-│   ├── retrieval/                  # Qdrant client, embeddings, query expander, RRF
+│   ├── retrieval/                  # Qdrant client, embeddings, query expander, local embeddings, RRF
 │   ├── reranking/                  # Cohere reranker
 │   ├── compression/                # BM25 sub-scoring + token budget
-│   ├── generation/                 # LLM client (OpenAI/Anthropic)
+│   ├── generation/                 # LLM client (OpenRouter — OpenAI-compatible API)
 │   ├── quality/                    # HHEM hallucination check (REAL — vectara model on CPU)
 │   └── output_schema.py            # Per-route JSON schema enforcement
 ├── observability/
@@ -59,15 +59,15 @@ tests/
 | 001 | Validate EC-4 Cohere Rerank in staging | P0 | Open — needs COHERE_API_KEY |
 | 002 | Backfill null baselines (Wave 1 layers) | P1 | Open — needs live services |
 | 003 | Compression sentence logging | P1 | Fixed |
-| 004 | Routing accuracy with real OpenAI embeddings | P1 | Open — needs OPENAI_API_KEY |
-| 005 | Multi-query recall with live Qdrant retrieval | P1 | Open — needs Qdrant + OPENAI_API_KEY |
+| 004 | Routing accuracy with real local embeddings | P1 | Partial — 4/5 (80%) at threshold=0.15. Needs routes.yaml tuning for >95%. |
+| 005 | Multi-query recall with live Qdrant retrieval | P1 | Open — needs Qdrant + OPENROUTER_API_KEY |
 | 006 | Backfill null latency baselines (Wave 2 layers) | P2 | Open — needs API keys |
 | 007 | Missing PII pattern types (addresses, IBANs, API tokens, MRNs) | P2 | Open |
 | 008 | Passport number triggers SSN false positive | P3 | Open |
 | 009 | FR-202 routing deferral was undocumented (now fixed) | P3 | Open — process gap |
 | 010 | Lakera L2 social engineering validation | P1 | Open — needs LAKERA_API_KEY |
 | 011 | Natural language PII beyond regex scope | P3 | Open — documentation |
-| 012 | Generate HHEM 500-query eval set for EC-1 | P1 | Open — needs OPENAI_API_KEY |
+| 012 | Generate HHEM 500-query eval set for EC-1 | P1 | Open — needs OPENROUTER_API_KEY |
 | 013 | Wire OutputSchemaEnforcer into orchestrator | P2 | Open — Wave 3 follow-up |
 
 ## Known Technical Debt
@@ -97,6 +97,7 @@ tests/
 ### Routing
 - Routing branching implemented. `rag_knowledge_base` → full RAG, `direct_llm` → skip retrieval, `escalate_human` → handoff.
 - `sql_structured_data` and `api_lookup` raise `NotImplementedError` (Wave 4+).
+- **Local embeddings:** `all-MiniLM-L6-v2` via sentence-transformers (384-dim, CPU, no API key). Confidence threshold lowered to 0.15 for local model.
 
 ### Pipeline Stage Reality
 - **7/12 stages run real logic:** L1 regex, PII detection, routing algorithm, dedup, BM25 compression, token budget, HHEM hallucination check.
@@ -111,17 +112,19 @@ tests/
 - **`max` aggregation for HHEM** (Wave 3): Best-chunk approach for RAG where retrieval returns mixed-relevance chunks.
 - **Local JSON trace fallback** (Wave 3): Same schema as Langfuse, no server required for CI.
 - **Post-hoc schema enforcement over constrained decoding** (Wave 3): jsonschema validation is simpler, more testable, and independent of the LLM provider.
+- **OpenRouter over direct OpenAI** (post-Wave 3): Single LLM gateway for all models. `AsyncOpenAI` SDK with `base_url="https://openrouter.ai/api/v1"`. Default model: `anthropic/claude-sonnet-4-5`, fallback: `anthropic/claude-haiku-4-5`. Query expansion uses cheaper `anthropic/claude-haiku-4-5`.
+- **Local sentence-transformers for routing** (post-Wave 3): `all-MiniLM-L6-v2` (384-dim, ~80MB, CPU). No API key needed. Confidence threshold adjusted from 0.7 to 0.15 for local model's lower average similarities.
 
 ## Key Configuration
 
 - `pipeline_config.yaml` — master config (safety, routing, query expansion, hallucination, etc.)
-- `.env.example` — required API keys: OPENAI_API_KEY, COHERE_API_KEY, LAKERA_API_KEY
+- `.env.example` — required API keys: OPENROUTER_API_KEY, COHERE_API_KEY, LAKERA_API_KEY
 - `src/pipeline/routing/routes.yaml` — 5 routes with 12-13 utterances each
 
 ## Running Tests
 
 ```bash
-# All unit + eval tests (155 tests, 21 skipped without OPENAI_API_KEY)
+# All unit + eval tests (155 tests, 21 skipped without OPENROUTER_API_KEY)
 python3 -m pytest tests/ --ignore=tests/integration -q
 
 # Integration tests (requires Docker services + API keys)
