@@ -1,0 +1,9 @@
+generation:
+  temperature: 0.05
+
+observability:
+  langfuse_sample_rate: 1.0
+
+experimentation:
+  shadow_mode_enabled: true
+  shadow_pipeline_version: "candidate-v1.1.0"

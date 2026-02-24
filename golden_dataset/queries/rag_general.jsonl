@@ -1,0 +1,3 @@
+{"query": "What are the pipeline processing phases?", "expected_answer": "The pipeline has 8 layers: input safety, query routing, query expansion, retrieval, context preparation, generation, output safety, and observability.", "tags": ["architecture"]}
+{"query": "What vector metadata fields are required?", "expected_answer": "Required fields: user_id, tenant_id, doc_id, chunk_id, doc_type, chunk_index, created_at, updated_at, embedding_model, embedding_model_version, access_level.", "tags": ["schema"]}
+{"query": "What is the target faithfulness score?", "expected_answer": "The target faithfulness score is >=0.92 as measured by HHEM and DeepEval.", "tags": ["metrics"]}

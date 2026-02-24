@@ -1,0 +1,119 @@
+{
+  "_meta": {
+    "wave": 1,
+    "name": "Retrieval Quality Foundation",
+    "captured_at": "2026-02-24",
+    "elapsed_seconds": 1.93,
+    "note": "Synthetic baselines. Real baselines require Qdrant + API keys."
+  },
+  "exit_criteria": {
+    "ec1_chunking_10_doc_types": {
+      "status": "PASS",
+      "detail": {
+        "supported_types": [
+          "pdf",
+          "docx",
+          "html",
+          "markdown",
+          "csv",
+          "txt",
+          "pptx",
+          "xlsx",
+          "rst",
+          "xml"
+        ],
+        "supported_count": 10,
+        "avg_chunks_per_1500_char_doc": 2,
+        "chunks_by_type": {
+          "pdf": 2,
+          "docx": 2,
+          "html": 2,
+          "markdown": 2,
+          "csv": 2,
+          "txt": 2,
+          "pptx": 2,
+          "xlsx": 2,
+          "rst": 2,
+          "xml": 2
+        }
+      }
+    },
+    "ec2_dedup_under_5_pct": {
+      "status": "PASS",
+      "detail": {
+        "avg_removal_rate": 0.213,
+        "p50_removal_rate": 0.2105,
+        "residual_dupe_rate": 0.0,
+        "threshold": 0.95,
+        "trial_count": 100
+      }
+    },
+    "ec3_compression_40_pct": {
+      "status": "PASS",
+      "detail": {
+        "avg_compression_ratio": 0.7194,
+        "p50_compression_ratio": 0.7245,
+        "p95_compression_ratio": 0.6837,
+        "avg_tokens_before": 490,
+        "avg_tokens_after": 138,
+        "per_query_ratios": [
+          0.7347,
+          0.7347,
+          0.7245,
+          0.7143,
+          0.7245,
+          0.6837,
+          0.7449,
+          0.7347,
+          0.7041,
+          0.6939
+        ],
+        "sentences_per_chunk": 3,
+        "query_count": 10
+      }
+    },
+    "ec4_reranking_mrr_15_pct": {
+      "status": "PASS (simulated)",
+      "detail": {
+        "mrr_at_10_before": 0.2991,
+        "mrr_at_10_after": 0.6293,
+        "improvement_pct": 110.4,
+        "query_count": 200,
+        "note": "Simulated \u2014 real Cohere API benchmarks needed for production baseline"
+      }
+    },
+    "ec5_token_budget_1000_queries": {
+      "status": "PASS",
+      "detail": {
+        "budget": 4000,
+        "trial_count": 1000,
+        "violations": 0,
+        "avg_tokens_used": 2604,
+        "p50_tokens_used": 2828,
+        "p95_tokens_used": 4000,
+        "max_tokens_used": 4000
+      }
+    }
+  },
+  "baselines_for_wave6_dashboards": {
+    "retrieval_cosine_sim": {
+      "p50": null,
+      "p95": null,
+      "note": "Requires live Qdrant with ingested documents. Capture after first production ingest."
+    },
+    "avg_context_tokens_before_compression": 490,
+    "avg_context_tokens_after_compression": 138,
+    "end_to_end_latency_ms": {
+      "p50": null,
+      "p95": null,
+      "note": "Requires live pipeline with external API calls. Measure in staging."
+    },
+    "mrr_at_10": 0.2991,
+    "token_budget_utilization": {
+      "avg": 2604,
+      "p50": 2828,
+      "p95": 4000,
+      "budget": 4000
+    }
+  }
+}

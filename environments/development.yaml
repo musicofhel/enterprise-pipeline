@@ -1,0 +1,8 @@
+generation:
+  temperature: 0.1
+
+observability:
+  langfuse_sample_rate: 1.0
+
+experimentation:
+  shadow_mode_enabled: false

@@ -1,0 +1,59 @@
+version: "1.0.0"
+
+chunking:
+  strategy: by_title
+  max_characters: 1500
+  overlap: 200
+  provider: unstructured
+
+retrieval:
+  top_k: 20
+  dedup_threshold: 0.95
+  rerank_provider: cohere
+  rerank_top_n: 5
+
+compression:
+  method: bm25_subscoring
+  sentences_per_chunk: 5
+  max_total_tokens: 4000
+
+routing:
+  provider: semantic_router
+  default_route: rag_knowledge_base
+  confidence_threshold: 0.7
+
+query_expansion:
+  enabled: true
+  method: multi_query
+  num_queries: 3
+
+safety:
+  injection_detection:
+    layer_1: guardrails_ai
+    layer_2: lakera_guard
+    layer_3_enabled: false
+  pii_detection: true
+  pii_action: redact
+
+generation:
+  model: gpt-4o
+  temperature: 0.1
+  max_output_tokens: 1000
+  fallback_model: claude-sonnet-4-5-20250929
+
+hallucination:
+  model: vectara/hhem-2.1
+  threshold_pass: 0.85
+  threshold_warn: 0.70
+  fallback_on_fail: true
+
+observability:
+  langfuse_enabled: true
+  langfuse_sample_rate: 1.0
+  export_to_s3: true
+  export_schedule: daily
+
+experimentation:
+  shadow_mode_enabled: false
+  shadow_pipeline_version: null
+  feature_flag_provider: launchdarkly

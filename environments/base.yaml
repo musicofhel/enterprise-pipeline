@@ -1,0 +1,2 @@
+# Base configuration — all environments inherit from this
+# Override specific values in development.yaml or production.yaml
