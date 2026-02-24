@@ -81,3 +81,13 @@
 - Orchestrator already uses these in the query pipeline with Langfuse spans
 
 **BLOCKER for Wave 3 (carried from Wave 1):** ISSUE-001 (EC-4 Cohere Rerank validation) must be closed before HHEM integration. Faithfulness scores built on top of poorly-reranked context are meaningless.
+
+---
+
+## Post-Verification Findings (added after wave-2-verification-followup)
+
+- **FR-202 spec gap:** PRD lists FR-202 as P0 but it was not in Wave 2 deliverables. Caught in verification audit. Routing dispatch now implemented with 5 routes (ISSUE-009).
+- **PII coverage gaps:** Detector missing addresses, IBANs, API tokens, MRNs. 6/10 on hard-case inputs. Known limitation for regex-only approach (ISSUE-007). Passport→SSN false positive on 9-digit values (ISSUE-008). Natural-language numbers beyond regex scope (ISSUE-011).
+- **Injection L1 improvement:** Hyphen-separated evasion fixed. L1 now blocks 15/20 adversarial payloads (was 14/20). 5 social engineering bypasses confirmed as L2 scope — Lakera validation needed (ISSUE-010).
+- **Compression validated on realistic data:** 55.5% reduction on 216-242 token chunks. BM25 sub-scoring correctly prioritizes query-relevant sentences. Target ≥40% met.
+- **Honest stage assessment:** 6/12 stages run real logic, 6/12 are mocked/stubbed/skipped. Real: L1 regex, PII detection, routing algorithm, dedup, BM25 compression, token budget. Mocked: Lakera L2, Qdrant, Cohere rerank, LLM generation, HHEM hallucination check, Langfuse tracing.
