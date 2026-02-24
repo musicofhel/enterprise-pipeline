@@ -9,11 +9,17 @@ routing and safety layers will plug in. This confirms:
 """
 from __future__ import annotations
 
+import asyncio
 import inspect
 
 from src.pipeline.orchestrator import PipelineOrchestrator
 from src.pipeline.routing import QueryRouter
 from src.pipeline.safety import SafetyChecker
+
+
+async def _noop_embed_fn(texts: list[str]) -> list[list[float]]:
+    """Trivial embedding function for interface tests."""
+    return [[0.0] * 32 for _ in texts]
 
 
 class TestWave2IntegrationSurface:
@@ -27,8 +33,8 @@ class TestWave2IntegrationSurface:
         assert "user_id" in params, "check_input must accept 'user_id' parameter"
 
     def test_query_router_interface(self):
-        """QueryRouter has the async route method Wave 2 must implement."""
-        router = QueryRouter()
+        """QueryRouter has the async route method."""
+        router = QueryRouter(embed_fn=_noop_embed_fn)
         assert hasattr(router, "route")
         sig = inspect.signature(router.route)
         params = list(sig.parameters.keys())
@@ -58,10 +64,8 @@ class TestWave2IntegrationSurface:
             "PipelineOrchestrator must accept hallucination_checker in constructor"
         )
 
-    def test_safety_stub_returns_expected_shape(self):
-        """Stub returns dict with 'passed', 'reason', 'skipped' keys."""
-        import asyncio
-
+    def test_safety_returns_expected_shape(self):
+        """SafetyChecker returns dict with 'passed' and 'skipped' keys."""
         checker = SafetyChecker()
         result = asyncio.get_event_loop().run_until_complete(
             checker.check_input("test", "user-1")
@@ -69,13 +73,10 @@ class TestWave2IntegrationSurface:
         assert "passed" in result
         assert "skipped" in result
         assert result["passed"] is True
-        assert result["skipped"] is True
 
-    def test_router_stub_returns_expected_shape(self):
-        """Stub returns dict with 'route', 'confidence', 'skipped' keys."""
-        import asyncio
-
-        router = QueryRouter(default_route="rag_knowledge_base")
+    def test_router_returns_expected_shape(self):
+        """QueryRouter returns dict with 'route', 'confidence', 'skipped' keys."""
+        router = QueryRouter(default_route="rag_knowledge_base", embed_fn=_noop_embed_fn)
         result = asyncio.get_event_loop().run_until_complete(router.route("test query"))
         assert "route" in result
         assert "confidence" in result

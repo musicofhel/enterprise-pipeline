@@ -1,0 +1,82 @@
+routes:
+  - name: rag_knowledge_base
+    description: General document Q&A, knowledge lookup, factual questions answerable from stored documents
+    utterances:
+      - "What does our company policy say about remote work?"
+      - "Find information about the onboarding process for new employees"
+      - "What are the technical requirements listed in the architecture document?"
+      - "Summarize the key points from the Q3 earnings report"
+      - "How does our authentication system work according to the docs?"
+      - "What are the compliance requirements for data retention?"
+      - "Look up the deployment procedure from our runbook"
+      - "What did the security audit report say about our API endpoints?"
+      - "Find the section about error handling in the developer guide"
+      - "What are the SLA terms in our service agreement?"
+      - "Explain the data flow described in the system architecture"
+      - "What troubleshooting steps are documented for database connection failures?"
+
+  - name: sql_structured_data
+    description: Questions about structured data, metrics, database queries, analytics, and tabular information
+    utterances:
+      - "How many active users do we have this month?"
+      - "Show me the revenue breakdown by region for Q4"
+      - "What is the average response time for API calls last week?"
+      - "Which customers have the highest support ticket volume?"
+      - "Compare sales figures between January and February"
+      - "What is the current churn rate for enterprise accounts?"
+      - "List all orders placed in the last 24 hours with amounts over $1000"
+      - "What percentage of deployments failed in the past sprint?"
+      - "Give me the top 10 products by revenue this quarter"
+      - "How many incidents were reported by severity level last month?"
+      - "What is the year-over-year growth in monthly active users?"
+      - "Show the distribution of ticket resolution times by category"
+      - "Calculate the conversion rate from trial to paid accounts"
+
+  - name: direct_llm
+    description: Creative writing, general chat, opinions, advice, brainstorming -- no retrieval needed
+    utterances:
+      - "Write me a professional email to decline a meeting invitation"
+      - "Help me brainstorm names for our new product feature"
+      - "What are some best practices for conducting code reviews?"
+      - "Can you explain the difference between REST and GraphQL in general?"
+      - "Draft a job description for a senior backend engineer"
+      - "Rewrite this paragraph to be more concise"
+      - "What are the pros and cons of microservices architecture?"
+      - "Help me come up with a tagline for our developer conference"
+      - "Translate this error message into a user-friendly notification"
+      - "Give me advice on how to structure a technical presentation"
+      - "Suggest some icebreaker questions for a team retrospective"
+      - "Write a commit message for this set of changes"
+
+  - name: api_lookup
+    description: Real-time data requests, live status checks, current prices, external API lookups
+    utterances:
+      - "What is the current status of the production deployment?"
+      - "Check if the payment gateway is operational right now"
+      - "What is the latest stock price for AAPL?"
+      - "Is the CI/CD pipeline currently running for the main branch?"
+      - "What is the current weather in our office location?"
+      - "Check the real-time health status of our microservices"
+      - "What is the current exchange rate for USD to EUR?"
+      - "Are there any active incidents on our status page right now?"
+      - "What is the live latency for our east-coast data center?"
+      - "Check the current queue depth for our message broker"
+      - "What are the trending topics on our support forum today?"
+      - "Get the latest container image tag published to our registry"
+
+  - name: escalate_human
+    description: Complaints, legal issues, sensitive topics, requests that cannot or should not be answered by AI
+    utterances:
+      - "I want to file a formal complaint about your service"
+      - "This is a legal matter regarding our contract terms"
+      - "I need to speak with a human representative immediately"
+      - "I am considering legal action against the company"
+      - "This involves confidential employee disciplinary records"
+      - "I want to report harassment by a team member"
+      - "There has been a data breach affecting customer information"
+      - "I need help with a workplace discrimination issue"
+      - "The AI keeps giving me wrong answers and I need a real person"
+      - "This involves sensitive medical information about an employee"
+      - "I want to escalate this issue to management"
+      - "I need to discuss termination of our enterprise agreement"
+      - "There are GDPR concerns about how our data was processed"

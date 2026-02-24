@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     # Cohere
     cohere_api_key: SecretStr = SecretStr("")
 
+    # Lakera Guard
+    lakera_api_key: SecretStr = SecretStr("")
+
     # Qdrant
     qdrant_host: str = "localhost"
     qdrant_port: int = 6333

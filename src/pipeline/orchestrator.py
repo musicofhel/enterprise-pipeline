@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from src.pipeline.reranking.cohere_reranker import CohereReranker
     from src.pipeline.retrieval.deduplication import Deduplicator
     from src.pipeline.retrieval.embeddings import EmbeddingService
+    from src.pipeline.retrieval.query_expander import QueryExpander
     from src.pipeline.retrieval.vector_store import VectorStore
     from src.pipeline.routing import QueryRouter
     from src.pipeline.safety import SafetyChecker
@@ -42,6 +43,7 @@ class PipelineOrchestrator:
         tracing: TracingService,
         chunker: DocumentChunker,
         metadata_extractor: MetadataExtractor,
+        query_expander: QueryExpander | None = None,
     ) -> None:
         self._embedding = embedding_service
         self._vector_store = vector_store
@@ -56,6 +58,7 @@ class PipelineOrchestrator:
         self._tracing = tracing
         self._chunker = chunker
         self._metadata_extractor = metadata_extractor
+        self._query_expander = query_expander
 
     async def query(self, request: QueryRequest) -> QueryResponse:
         """Execute the full RAG pipeline for a query."""
@@ -93,15 +96,33 @@ class PipelineOrchestrator:
             span.set_attribute("route", route_result["route"])
             span.set_attribute("skipped", route_result.get("skipped", False))
 
-        # 3. Retrieval
+        # 3. Retrieval (with optional multi-query expansion)
         with trace.span("retrieval") as span:
-            query_embedding = await self._embedding.embed_query(request.query)
+            if self._query_expander:
+                from src.pipeline.retrieval.reciprocal_rank_fusion import reciprocal_rank_fusion
 
-            raw_results = await self._vector_store.search(
-                query_embedding=query_embedding,
-                top_k=20,
-                tenant_id=request.tenant_id,
-            )
+                queries = await self._query_expander.expand(request.query)
+                span.set_attribute("expanded_queries", len(queries))
+
+                all_result_lists: list[list[dict[str, Any]]] = []
+                for q in queries:
+                    q_embedding = await self._embedding.embed_query(q)
+                    q_results = await self._vector_store.search(
+                        query_embedding=q_embedding,
+                        top_k=20,
+                        tenant_id=request.tenant_id,
+                    )
+                    all_result_lists.append(q_results)
+
+                raw_results = reciprocal_rank_fusion(all_result_lists)
+            else:
+                query_embedding = await self._embedding.embed_query(request.query)
+                raw_results = await self._vector_store.search(
+                    query_embedding=query_embedding,
+                    top_k=20,
+                    tenant_id=request.tenant_id,
+                )
+
             span.set_attribute("num_results_raw", len(raw_results))
 
             # 4. Deduplication

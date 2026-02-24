@@ -20,9 +20,13 @@ from src.pipeline.quality import HallucinationChecker
 from src.pipeline.reranking.cohere_reranker import CohereReranker
 from src.pipeline.retrieval.deduplication import Deduplicator
 from src.pipeline.retrieval.embeddings import EmbeddingService
+from src.pipeline.retrieval.query_expander import QueryExpander
 from src.pipeline.retrieval.vector_store import VectorStore
 from src.pipeline.routing import QueryRouter
 from src.pipeline.safety import SafetyChecker
+from src.pipeline.safety.injection_detector import InjectionDetector
+from src.pipeline.safety.lakera_guard import LakeraGuardClient
+from src.pipeline.safety.pii_detector import PIIDetector
 
 
 @lru_cache
@@ -91,6 +95,25 @@ def get_orchestrator() -> PipelineOrchestrator:
     )
     metadata_extractor = MetadataExtractor(embedding_model=embedding_service.model)
 
+    # Safety layer — Lakera Guard wired when API key is available
+    lakera_client = None
+    lakera_key = settings.lakera_api_key.get_secret_value()
+    if lakera_key:
+        lakera_client = LakeraGuardClient(api_key=lakera_key)
+
+    safety_checker = SafetyChecker(
+        injection_detector=InjectionDetector(),
+        lakera_client=lakera_client,
+        pii_detector=PIIDetector(),
+    )
+
+    # Query expansion — uses the same OpenAI client
+    query_expander = QueryExpander(
+        client=openai_client,
+        num_queries=config.query_expansion.num_queries,
+        model=config.generation.model,
+    ) if config.query_expansion.enabled else None
+
     return PipelineOrchestrator(
         embedding_service=embedding_service,
         vector_store=vector_store,
@@ -99,10 +122,15 @@ def get_orchestrator() -> PipelineOrchestrator:
         bm25_compressor=bm25_compressor,
         token_budget=token_budget,
         llm_client=llm_client,
-        safety_checker=SafetyChecker(),
-        query_router=QueryRouter(default_route=config.routing.default_route),
+        safety_checker=safety_checker,
+        query_router=QueryRouter(
+            default_route=config.routing.default_route,
+            confidence_threshold=config.routing.confidence_threshold,
+            embedding_service=embedding_service,
+        ),
         hallucination_checker=HallucinationChecker(),
         tracing=tracing,
         chunker=chunker,
         metadata_extractor=metadata_extractor,
+        query_expander=query_expander,
     )
