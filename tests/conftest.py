@@ -1,5 +1,26 @@
+"""Shared test fixtures and OpenRouter → OpenAI env bridge.
+
+DeepEval's FaithfulnessMetric uses the OpenAI SDK internally for LLM-based
+claim decomposition.  It reads OPENAI_API_KEY and OPENAI_BASE_URL from the
+environment — it knows nothing about OpenRouter.
+
+This conftest installs a **session-scoped autouse fixture** that copies
+OPENROUTER_API_KEY into the two OpenAI env vars so that DeepEval (and any
+other library that speaks the OpenAI protocol) routes through OpenRouter
+automatically.
+
+    OPENROUTER_API_KEY  →  OPENAI_API_KEY
+    (always)            →  OPENAI_BASE_URL = https://openrouter.ai/api/v1
+
+The bridge only activates when OPENROUTER_API_KEY is set **and**
+OPENAI_API_KEY is *not* already set (so an explicit OPENAI_API_KEY still
+wins if someone needs raw OpenAI access).
+
+CI only needs one secret: OPENROUTER_API_KEY.
+"""
 from __future__ import annotations
 
+import os
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -7,6 +28,21 @@ import pytest
 
 from src.config.pipeline_config import PipelineConfig
 from src.config.settings import Settings
+
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _bridge_openrouter_to_openai_env() -> None:
+    """Set OPENAI_API_KEY and OPENAI_BASE_URL from OPENROUTER_API_KEY.
+
+    Runs once per test session, before any test collection.  Only writes the
+    env vars when OPENROUTER_API_KEY is present and OPENAI_API_KEY is absent.
+    """
+    openrouter_key = os.environ.get("OPENROUTER_API_KEY", "")
+    if openrouter_key and not os.environ.get("OPENAI_API_KEY"):
+        os.environ["OPENAI_API_KEY"] = openrouter_key
+        os.environ["OPENAI_BASE_URL"] = OPENROUTER_BASE_URL
 
 
 @pytest.fixture

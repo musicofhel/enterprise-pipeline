@@ -80,6 +80,7 @@ jobs:
       - name: Run faithfulness eval (DeepEval)
         if: env.OPENROUTER_API_KEY != ''
         env:
+          # conftest.py auto-bridges OPENROUTER_API_KEY → OPENAI_API_KEY + OPENAI_BASE_URL
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: pytest tests/eval/test_faithfulness.py -v --tb=short
 
