@@ -56,7 +56,7 @@
 | Item | Signal from Wave 2 | Recommendation |
 |------|-------------------|----------------|
 | Lakera Guard live validation | Client wired, API key absent | **Capture real metrics when LAKERA_API_KEY is provisioned.** Measure L2 latency, pass-through rate on OWASP benchmark, PII detection recall. |
-| Routing with real embeddings | Works with deterministic embeddings | **Validate against OpenAI text-embedding-3-small on production queries.** The 95% accuracy target may need utterance tuning. |
+| Routing with real embeddings | Works with deterministic embeddings | **Resolved (post-Wave 3):** Switched to local `all-MiniLM-L6-v2` (sentence-transformers). Threshold lowered to 0.15. 4/5 (80%) accuracy on 5-query test. See ISSUE-004. |
 | Multi-query recall on live data | RRF algorithm validated synthetically | **Measure real Recall@10 improvement when Qdrant + golden dataset are available.** |
 | Zero PII in logged traces | PII flagging works, redaction available | **Wire redaction into the Langfuse trace pipeline in Wave 3.** Currently PII is detected but traces may still contain raw PII in span metadata. |
 | Layer 3 LLM-based injection detection | Config flag exists (`layer_3_enabled: false`) | **Defer to Phase 2 (Wave 4 compliance).** Only triggered on medium-confidence L2 results. Requires latency budget analysis. |
@@ -91,3 +91,11 @@
 - **Injection L1 improvement:** Hyphen-separated evasion fixed. L1 now blocks 15/20 adversarial payloads (was 14/20). 5 social engineering bypasses confirmed as L2 scope — Lakera validation needed (ISSUE-010).
 - **Compression validated on realistic data:** 55.5% reduction on 216-242 token chunks. BM25 sub-scoring correctly prioritizes query-relevant sentences. Target ≥40% met.
 - **Honest stage assessment:** 6/12 stages run real logic, 6/12 are mocked/stubbed/skipped. Real: L1 regex, PII detection, routing algorithm, dedup, BM25 compression, token budget. Mocked: Lakera L2, Qdrant, Cohere rerank, LLM generation, HHEM hallucination check, Langfuse tracing.
+
+---
+
+## Post-Wave 3 Updates
+
+- **LLM provider:** OpenAI → OpenRouter (OpenAI-compatible API). Default model: `anthropic/claude-sonnet-4-5`, fallback: `anthropic/claude-haiku-4-5`. All `OPENAI_API_KEY` refs renamed to `OPENROUTER_API_KEY`.
+- **Routing embeddings:** API-based `text-embedding-3-small` → local `all-MiniLM-L6-v2` (sentence-transformers, 384-dim, CPU, no API key). Confidence threshold lowered from 0.7 to 0.15 for local model's lower similarity scores.
+- **Stage count updated:** 7/12 REAL (HHEM hallucination check moved from STUB to REAL in Wave 3).

@@ -16,7 +16,7 @@
 
 | Criterion | Status | Remediation | Owner | Due |
 |-----------|--------|-------------|-------|-----|
-| EC-3 routing accuracy | PASS (deterministic) | Needs validation with real OpenAI embeddings against production query distribution | Pipeline Eng | Before Wave 3 routing goes live |
+| EC-3 routing accuracy | PASS (deterministic) | **Partially resolved:** Local `all-MiniLM-L6-v2` at threshold=0.15 gives 4/5 (80%). Needs routes.yaml tuning (ISSUE-004). | Pipeline Eng | Before Wave 3 routing goes live |
 | EC-4 multi-query recall | PASS (simulated) | Needs live retrieval against golden dataset in Qdrant | Pipeline Eng | When Qdrant staging is provisioned |
 
 Note: Both are PASS against synthetic data. Real validation requires live infrastructure (same pattern as Wave 1 EC-4).
@@ -84,7 +84,7 @@ Note: Both are PASS against synthetic data. Real validation requires live infras
   - `safety.injection_detection.layer_2: lakera_guard` — maps to `LakeraGuardClient`
   - `safety.pii_detection: true` — maps to `PIIDetector`
   - `routing.provider: semantic_router` — maps to `QueryRouter`
-  - `routing.confidence_threshold: 0.7` — used by `QueryRouter`
+  - `routing.confidence_threshold: 0.15` — used by `QueryRouter` (lowered from 0.7 for local `all-MiniLM-L6-v2`)
   - `query_expansion.enabled: true` — gates `QueryExpander` in deps.py
   - `query_expansion.num_queries: 3` — passed to `QueryExpander`
 - [x] API contracts: `ErrorResponse` schema already supports `422` blocked response per tech spec Section 3.1. `force_route` option in `QueryOptions` ready for routing override.

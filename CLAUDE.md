@@ -124,7 +124,8 @@ tests/
 ## Running Tests
 
 ```bash
-# All unit + eval tests (175 pass, 1 skip — needs OPENROUTER_API_KEY + OPENAI_BASE_URL for DeepEval)
+# All unit + eval tests (175 pass, 1 skip)
+# conftest.py auto-bridges OPENROUTER_API_KEY → OPENAI_API_KEY + OPENAI_BASE_URL for DeepEval
 python3 -m pytest tests/ --ignore=tests/integration -q
 
 # Integration tests (requires Docker services + API keys)
