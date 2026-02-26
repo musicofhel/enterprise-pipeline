@@ -27,6 +27,7 @@ dependencies = [
     "torch>=2.0",
     "sentencepiece>=0.2,<1",
     "sentence-transformers>=3.0,<4",
+    "scipy>=1.10,<2",
 ]
 
 [project.optional-dependencies]
@@ -95,5 +96,7 @@ module = [
     "jsonschema.*",
     "sentence_transformers",
     "sentence_transformers.*",
+    "scipy",
+    "scipy.*",
 ]
 ignore_missing_imports = true

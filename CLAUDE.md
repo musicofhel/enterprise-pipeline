@@ -14,6 +14,17 @@ Production-grade RAG pipeline built in 3 phases across 8 waves. Python + FastAPI
 - **Wave 2 (Input Safety & Query Intelligence):** Complete. Tag: `wave-2-complete`. Verification follow-up complete.
 - **Wave 3 (Output Quality & Tracing):** Complete. Tag: `wave-3-complete`. 175 tests passing, 1 skipped (empty context edge case). Lint and typecheck clean (0 new errors).
 - **Wave 4 (Compliance & Data Governance):** Complete. Tag: `wave-4-complete`. 239 tests passing, 21 skipped (DeepEval API key tests). Lint clean, 0 new mypy errors. HHEM restored (transformers 5.2.0 → 4.57.6). Lockfile + version guard added.
+- **Wave 5 (Deployment & Experimentation):** Complete. Tag: `wave-5-complete`. 283 tests passing, 21 skipped. Lint clean, 0 new mypy errors. All local implementations (no Temporal, no LaunchDarkly).
+
+### Wave 5 Deliverables
+
+| # | Deliverable | Status | Tests |
+|---|-------------|--------|-------|
+| 5.1 | Promptfoo eval config | `promptfoo.config.yaml` — OpenRouter provider, 2 prompts, 20 golden dataset cases, custom assertion | 4 tests |
+| 5.2 | Shadow mode pipeline | `ShadowRunner` — `asyncio.create_task()` fire-and-forget, budget tracking, circuit breaker, <0.01ms overhead | 14 tests |
+| 5.3 | Feature flags | `FeatureFlagService` — MD5 hash deterministic routing, tenant/user overrides, audit logging | 10 tests |
+| 5.4 | Experiment analyzer | `ExperimentAnalyzer` — Welch's t-test, Mann-Whitney U, Cohen's d, auto-recommendation | 7 tests |
+| 5.5 | CI eval gate | `check_regression.py --promptfoo-results` — blocks on >2% regression, promptfoo-eval CI job | 2 tests + 8 exit criteria |
 
 ### Wave 4 Deliverables
 
@@ -66,13 +77,18 @@ src/
 │   ├── tracing.py                  # Langfuse SDK + local JSON fallback
 │   ├── audit_log.py                # Immutable audit log (WORM — no delete/update)
 │   └── logging.py                  # structlog JSON/console config with trace context
+├── experimentation/
+│   ├── __init__.py                 # Package exports
+│   ├── feature_flags.py            # FeatureFlagService (local YAML, hash-based)
+│   ├── shadow_mode.py              # ShadowRunner + ShadowComparison
+│   └── analysis.py                 # ExperimentAnalyzer (scipy stats)
 ├── services/
 │   ├── deletion_service.py         # Right-to-deletion orchestrator (vectors + traces + feedback)
 │   ├── feedback_service.py         # Feedback storage with audit trail
 │   └── retention_checker.py        # TTL-based data retention enforcement
 └── utils/tokens.py                 # tiktoken helpers
 tests/
-├── unit/                           # 30 test files (~210 tests)
+├── unit/                           # 35 test files (~245 tests)
 ├── eval/                           # DeepEval faithfulness + exit criteria
 └── integration/                    # E2E pipeline + Cohere/Lakera stubs
 ```
@@ -115,6 +131,13 @@ tests/
 - Schema matches tech spec Section 2.2: trace_id, timestamp, user_id, session_id, pipeline_version, config_hash, feature_flags, spans, scores.
 - `pipeline_version` from `git rev-parse --short HEAD`, `config_hash` from SHA256 of `pipeline_config.yaml`.
 
+### Experimentation (Wave 5)
+- **Feature flags**: Local YAML config loaded at startup. No hot-reload — service restart required for config changes.
+- **Shadow mode**: Budget tracked in-memory per process. Multi-worker deployments need Redis counter.
+- **Experiment analysis**: Reads individual JSON trace files via glob. JSONL per-day would be faster at scale.
+- **Promptfoo**: Config ready but CI job needs `OPENROUTER_API_KEY` in GitHub secrets to actually run.
+- **Config models**: `ShadowModeConfig` and `FeatureFlagConfig` nested under `ExperimentationConfig` in `pipeline_config.py`.
+
 ### Injection Defense
 - L1 regex blocks 15/20 adversarial payloads.
 - 5 remaining bypasses are social engineering attacks requiring Lakera L2 (ISSUE-010).
@@ -147,6 +170,10 @@ tests/
 - **Post-hoc schema enforcement over constrained decoding** (Wave 3): jsonschema validation is simpler, more testable, and independent of the LLM provider.
 - **OpenRouter over direct OpenAI** (post-Wave 3): Single LLM gateway for all models. `AsyncOpenAI` SDK with `base_url="https://openrouter.ai/api/v1"`. Default model: `anthropic/claude-sonnet-4-5`, fallback: `anthropic/claude-haiku-4-5`. Query expansion uses cheaper `anthropic/claude-haiku-4-5`.
 - **Local sentence-transformers for routing** (post-Wave 3): `all-MiniLM-L6-v2` (384-dim, ~80MB, CPU). No API key needed. Confidence threshold adjusted from 0.7 to 0.15 for local model's lower average similarities.
+- **`asyncio.create_task()` for shadow mode** (Wave 5): Fire-and-forget pattern, <0.01ms overhead on primary path. Reuses retrieval results — only re-runs generation step. No Temporal needed.
+- **MD5 hash-based feature flags** (Wave 5): `hashlib.md5(user_id)[:8]` → int mod 10000 → [0,1) bucket. Deterministic assignment, tenant/user overrides, audit trail. No LaunchDarkly needed.
+- **scipy for experiment analysis** (Wave 5): Welch's t-test + Mann-Whitney U + Cohen's d. Min 30 traces per variant. Auto-generates recommendation (promote/regress/continue).
+- **Promptfoo via OpenRouter** (Wave 5): `openai:anthropic/claude-sonnet-4-5` with `apiBaseUrl`. Custom Python assertion for eval quality checks.
 - **API key → Role RBAC** (Wave 4): Static env-var registry (`API_KEY_ROLES`), 5 roles, 13 permissions. `require_permission()` FastAPI dependency. Only `security_admin` and `compliance_officer` can delete user data.
 - **Per-step deletion tracking** (Wave 4): Each deletion step (vectors, traces, feedback) tracked independently with status/count/error. Overall status: `completed` (all pass), `partial` (some fail), `failed` (all fail).
 - **Configurable audit log path** (Wave 4): `compliance.audit_log_path` in `pipeline_config.yaml`, defaults to `audit_logs/local`.
@@ -157,11 +184,13 @@ tests/
 - `.env.example` — required API keys: OPENROUTER_API_KEY, COHERE_API_KEY, LAKERA_API_KEY
 - `API_KEY_ROLES` env var — semicolon-separated `key=role` pairs for RBAC (e.g. `sk-admin=security_admin;sk-worker=pipeline_worker`)
 - `src/pipeline/routing/routes.yaml` — 5 routes with 12-13 utterances each
+- `experiment_configs/flags.yaml` — Feature flag variant weights + user/tenant overrides
+- `promptfoo.config.yaml` — Promptfoo eval configuration (OpenRouter provider)
 
 ## Running Tests
 
 ```bash
-# All unit + eval tests (239 pass, 21 skip — DeepEval needs API key)
+# All unit + eval tests (283 pass, 21 skip — DeepEval needs API key)
 # conftest.py auto-bridges OPENROUTER_API_KEY → OPENAI_API_KEY + OPENAI_BASE_URL for DeepEval
 .venv/bin/python -m pytest tests/ --ignore=tests/integration -q
 

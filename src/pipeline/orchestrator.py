@@ -10,6 +10,8 @@ from src.models.schemas import QueryMetadata, QueryRequest, QueryResponse, Sourc
 from src.observability.logging import bind_trace_context, clear_trace_context
 
 if TYPE_CHECKING:
+    from src.experimentation.feature_flags import FeatureFlagService
+    from src.experimentation.shadow_mode import ShadowRunner
     from src.observability.tracing import TracingService
     from src.pipeline.chunking.chunker import DocumentChunker
     from src.pipeline.chunking.metadata_extractor import MetadataExtractor
@@ -45,6 +47,8 @@ class PipelineOrchestrator:
         chunker: DocumentChunker,
         metadata_extractor: MetadataExtractor,
         query_expander: QueryExpander | None = None,
+        feature_flags: FeatureFlagService | None = None,
+        shadow_runner: ShadowRunner | None = None,
     ) -> None:
         self._embedding = embedding_service
         self._vector_store = vector_store
@@ -60,16 +64,27 @@ class PipelineOrchestrator:
         self._chunker = chunker
         self._metadata_extractor = metadata_extractor
         self._query_expander = query_expander
+        self._feature_flags = feature_flags
+        self._shadow_runner = shadow_runner
 
     async def query(self, request: QueryRequest) -> QueryResponse:
         """Execute the full RAG pipeline for a query."""
         start_time = time.monotonic()
+
+        # Resolve experiment variant
+        variant = "control"
+        if self._feature_flags:
+            variant = self._feature_flags.get_variant(
+                user_id=request.user_id,
+                tenant_id=request.tenant_id,
+            )
 
         trace = self._tracing.create_trace(
             name="pipeline_query",
             user_id=request.user_id,
             session_id=request.session_id,
             metadata={"tenant_id": request.tenant_id},
+            variant=variant,
         )
 
         # Bind trace context for structured logging
@@ -330,6 +345,18 @@ class PipelineOrchestrator:
         trace.set_score("faithfulness", hall_result["score"])
         trace.save_local()
         self._tracing.flush()
+
+        # Fire-and-forget shadow pipeline (if enabled)
+        if self._shadow_runner:
+            latency_ms_for_shadow = int((time.monotonic() - start_time) * 1000)
+            self._shadow_runner.record_primary_latency(float(latency_ms_for_shadow))
+            self._shadow_runner.maybe_run(
+                request_query=request.query,
+                primary_response=llm_result,
+                context_chunks=budgeted,
+                user_id=request.user_id,
+                tenant_id=request.tenant_id,
+            )
 
         # Handle hallucination check result
         hall_level = hall_result.get("level", "pass")

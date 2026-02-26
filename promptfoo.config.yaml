@@ -1,0 +1,21 @@
+description: "Enterprise RAG Pipeline — Current vs Candidate prompt comparison"
+
+prompts:
+  - file://prompts/current.txt
+  - file://prompts/candidate.txt
+
+providers:
+  - id: openai:anthropic/claude-sonnet-4-5
+    config:
+      apiBaseUrl: https://openrouter.ai/api/v1
+      temperature: 0.1
+      max_tokens: 1000
+
+tests: file://golden_dataset/promptfoo_tests.jsonl
+
+defaultTest:
+  assert:
+    - type: python
+      value: file://scripts/eval_assertions.py
+
+outputPath: eval_results/promptfoo_output.json

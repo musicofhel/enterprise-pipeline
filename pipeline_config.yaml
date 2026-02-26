@@ -60,9 +60,17 @@ observability:
   export_schedule: daily
 
 experimentation:
-  shadow_mode_enabled: false
-  shadow_pipeline_version: null
-  feature_flag_provider: launchdarkly
+  shadow_mode:
+    enabled: false
+    candidate_model: null
+    candidate_prompt_path: null
+    sample_rate: 0.1
+    budget_limit_usd: 10.0
+    circuit_breaker_latency_multiplier: 3.0
+  feature_flags:
+    enabled: false
+    config_path: experiment_configs/flags.yaml
+    default_variant: control
 
 compliance:
   deletion_sla_hours: 72

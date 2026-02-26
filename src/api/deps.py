@@ -10,6 +10,8 @@ from qdrant_client import AsyncQdrantClient
 
 from src.config.pipeline_config import PipelineConfig, load_pipeline_config
 from src.config.settings import Settings
+from src.experimentation.feature_flags import FeatureFlagService
+from src.experimentation.shadow_mode import ShadowRunner
 from src.observability.audit_log import AuditLogService
 from src.observability.tracing import TracingService
 from src.pipeline.chunking.chunker import DocumentChunker
@@ -91,6 +93,32 @@ def get_deletion_service() -> DeletionService:
     )
 
 
+def get_feature_flag_service() -> FeatureFlagService | None:
+    config = get_pipeline_config()
+    ff_config = config.experimentation.feature_flags
+    if not ff_config.enabled:
+        return None
+    audit_log = get_audit_log_service()
+    return FeatureFlagService(config=ff_config, audit_log=audit_log)
+
+
+def get_shadow_runner(llm_client: LLMClient | None = None) -> ShadowRunner | None:
+    config = get_pipeline_config()
+    shadow_config = config.experimentation.shadow_mode
+    if not shadow_config.enabled:
+        return None
+    if llm_client is None:
+        return None
+    tracing = get_tracing_service()
+    audit_log = get_audit_log_service()
+    return ShadowRunner(
+        llm_client=llm_client,
+        tracing=tracing,
+        config=shadow_config,
+        audit_log=audit_log,
+    )
+
+
 def get_orchestrator() -> PipelineOrchestrator:
     settings = get_settings()
     config = get_pipeline_config()
@@ -156,6 +184,10 @@ def get_orchestrator() -> PipelineOrchestrator:
         model=config.query_expansion.model,
     ) if config.query_expansion.enabled else None
 
+    # Experimentation
+    feature_flags = get_feature_flag_service()
+    shadow_runner = get_shadow_runner(llm_client=llm_client)
+
     return PipelineOrchestrator(
         embedding_service=embedding_service,
         vector_store=vector_store,
@@ -180,4 +212,6 @@ def get_orchestrator() -> PipelineOrchestrator:
         chunker=chunker,
         metadata_extractor=metadata_extractor,
         query_expander=query_expander,
+        feature_flags=feature_flags,
+        shadow_runner=shadow_runner,
     )

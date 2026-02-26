@@ -79,7 +79,25 @@ class ObservabilityConfig(BaseModel):
     export_schedule: str = "daily"
 
 
+class ShadowModeConfig(BaseModel):
+    enabled: bool = False
+    candidate_model: str | None = None
+    candidate_prompt_path: str | None = None
+    sample_rate: float = 0.1
+    budget_limit_usd: float = 10.0
+    circuit_breaker_latency_multiplier: float = 3.0
+
+
+class FeatureFlagConfig(BaseModel):
+    enabled: bool = False
+    config_path: str = "experiment_configs/flags.yaml"
+    default_variant: str = "control"
+
+
 class ExperimentationConfig(BaseModel):
+    shadow_mode: ShadowModeConfig = Field(default_factory=ShadowModeConfig)
+    feature_flags: FeatureFlagConfig = Field(default_factory=FeatureFlagConfig)
+    # Backward compat — old flat fields with defaults
     shadow_mode_enabled: bool = False
     shadow_pipeline_version: str | None = None
     feature_flag_provider: str = "launchdarkly"

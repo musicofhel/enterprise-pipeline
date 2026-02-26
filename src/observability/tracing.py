@@ -75,12 +75,13 @@ class TracingService:
         user_id: str,
         session_id: str | None = None,
         metadata: dict[str, Any] | None = None,
+        variant: str = "control",
     ) -> TraceContext:
         trace_metadata = {
             **(metadata or {}),
             "pipeline_version": self._pipeline_version,
             "config_hash": self._config_hash,
-            "feature_flags": {"pipeline_variant": "control"},
+            "feature_flags": {"pipeline_variant": variant},
         }
 
         if self.enabled:

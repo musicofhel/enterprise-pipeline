@@ -1,0 +1,11 @@
+variants:
+  - name: control
+    weight: 0.9
+  - name: treatment_a
+    weight: 0.1
+
+user_overrides:
+  test-user-123: treatment_a
+
+tenant_overrides:
+  tenant-beta: treatment_a
