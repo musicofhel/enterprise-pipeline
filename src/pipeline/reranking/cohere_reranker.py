@@ -16,7 +16,11 @@ class CohereReranker:
         self._top_n = top_n
 
     async def rerank(self, query: str, results: list[dict[str, Any]], top_n: int | None = None) -> list[dict[str, Any]]:
-        """Rerank results using Cohere Rerank API."""
+        """Rerank results using Cohere Rerank API.
+
+        Falls back to passthrough (returning input docs unchanged) if the
+        Cohere API call fails — e.g. missing or invalid API key.
+        """
         if not results:
             return []
 
@@ -25,12 +29,20 @@ class CohereReranker:
 
         logger.info("reranking", query_len=len(query), num_docs=len(documents), top_n=top_n)
 
-        response = await self._client.rerank(
-            model="rerank-v3.5",
-            query=query,
-            documents=documents,
-            top_n=min(top_n, len(documents)),
-        )
+        try:
+            response = await self._client.rerank(
+                model="rerank-v3.5",
+                query=query,
+                documents=documents,
+                top_n=min(top_n, len(documents)),
+            )
+        except Exception as exc:
+            logger.warning(
+                "reranking_failed_passthrough",
+                error=str(exc),
+                num_docs=len(results),
+            )
+            return results[:top_n]
 
         reranked = []
         for item in response.results:

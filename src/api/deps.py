@@ -24,7 +24,6 @@ from src.pipeline.orchestrator import PipelineOrchestrator
 from src.pipeline.quality import HallucinationChecker
 from src.pipeline.reranking.cohere_reranker import CohereReranker
 from src.pipeline.retrieval.deduplication import Deduplicator
-from src.pipeline.retrieval.embeddings import EmbeddingService
 from src.pipeline.retrieval.local_embeddings import LocalEmbeddingService
 from src.pipeline.retrieval.query_expander import QueryExpander
 from src.pipeline.retrieval.vector_store import VectorStore
@@ -136,11 +135,8 @@ def get_orchestrator() -> PipelineOrchestrator:
     )
     cohere_client = cohere.AsyncClientV2(api_key=settings.cohere_api_key.get_secret_value())
 
-    # Retrieval embeddings — via OpenRouter (text-embedding-3-small is available)
-    embedding_service = EmbeddingService(
-        client=openrouter_client,
-        model=config.chunking.provider if config.chunking.provider != "unstructured" else "text-embedding-3-small",
-    )
+    # Retrieval embeddings — same local model as routing (no API cost, 384-dim)
+    local_retrieval_embeddings = LocalEmbeddingService(model_name=config.routing.embedding_model)
     vector_store = VectorStore(client=qdrant_client)
     deduplicator = Deduplicator(threshold=config.retrieval.dedup_threshold)
     reranker = CohereReranker(client=cohere_client, top_n=config.retrieval.rerank_top_n)
@@ -161,7 +157,7 @@ def get_orchestrator() -> PipelineOrchestrator:
         max_characters=config.chunking.max_characters,
         overlap=config.chunking.overlap,
     )
-    metadata_extractor = MetadataExtractor(embedding_model=embedding_service.model)
+    metadata_extractor = MetadataExtractor(embedding_model=local_retrieval_embeddings.model)
 
     # Safety layer — Lakera Guard wired when API key is available
     lakera_client = None
@@ -193,7 +189,7 @@ def get_orchestrator() -> PipelineOrchestrator:
     retrieval_canary = RetrievalQualityCanary()
 
     return PipelineOrchestrator(
-        embedding_service=embedding_service,
+        embedding_service=local_retrieval_embeddings,
         vector_store=vector_store,
         deduplicator=deduplicator,
         reranker=reranker,

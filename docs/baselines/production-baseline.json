@@ -1,0 +1,54 @@
+{
+  "date": "2026-02-26",
+  "pipeline_version": "1.0.0",
+  "stages_real": 10,
+  "stages_mocked": 0,
+  "stages_skipped": 2,
+  "skipped_stages": ["lakera_l2", "cohere_rerank"],
+  "skip_reason": "No API keys (LAKERA_API_KEY, COHERE_API_KEY)",
+  "corpus": {
+    "documents": 8,
+    "chunks": 47,
+    "vectors": 47,
+    "embedding_model": "all-MiniLM-L6-v2",
+    "embedding_dimensions": 384
+  },
+  "test_results": {
+    "unit_tests_passed": 294,
+    "unit_tests_skipped": 0,
+    "integration_tests_passed": 1,
+    "integration_tests_skipped": 4,
+    "eval_tests_skipped": 21
+  },
+  "performance": {
+    "note": "Baselines from smoke load test (10 queries, concurrency 1)",
+    "latency_p50_ms": 4568,
+    "latency_p95_ms": 6479,
+    "latency_max_ms": 6479,
+    "throughput_rps": 0.26,
+    "cost_per_query_mean_usd": 0.001,
+    "safety_overhead_ms": 0.07,
+    "routing_overhead_ms": 3.52,
+    "retrieval_latency_ms": 8.99,
+    "hhem_overhead_ms": 343.79,
+    "total_non_llm_ms": 473
+  },
+  "security": {
+    "injection_block_rate": "6/8 (75%)",
+    "pii_detection_rate": "5/5 (100%)",
+    "rbac_enforced_endpoints": "all",
+    "secrets_audit": "clean",
+    "dependency_vulnerabilities": "0 applicable"
+  },
+  "adversarial": {
+    "injection_tests": "8/8 PASS",
+    "pii_tests": "6/6 PASS",
+    "auth_tests": "6/6 PASS",
+    "edge_case_tests": "5/5 PASS"
+  },
+  "issues": {
+    "closed": ["002", "003", "005", "006"],
+    "open": ["001", "004", "007", "008", "009", "010", "011", "012", "013"],
+    "blocking_production": ["001 (Cohere rerank)", "010 (Lakera L2)"]
+  }
+}

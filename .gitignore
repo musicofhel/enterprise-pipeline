@@ -62,3 +62,12 @@ qdrant_storage/
 
 # DeepEval cache
 .deepeval/
+
+# Annotation data (may contain PII from traces)
+annotations/
+
+# Private keys
+*.key
+
+# Eval reports (may contain trace data)
+eval_reports/

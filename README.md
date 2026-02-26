@@ -1,91 +1,193 @@
 # Enterprise AI Pipeline
 
-Production-grade RAG pipeline built in 3 phases across 8 waves. Python + FastAPI, Qdrant vector store, OpenRouter LLM gateway, Docker Compose + GitHub Actions CI.
+Production-grade RAG (Retrieval-Augmented Generation) pipeline built in 3 phases across 8 waves. Features a 12-stage pipeline with input safety (regex injection + PII detection), semantic query routing, multi-query expansion, Qdrant vector retrieval, BM25 compression, LLM generation via OpenRouter, HHEM hallucination detection, and full observability through Langfuse tracing, Prometheus metrics, and Grafana dashboards. Includes RBAC, audit logging, right-to-deletion, a data flywheel for continuous improvement, and A/B experimentation with shadow mode.
 
 ## Architecture
 
 ```
 User Request
-  → Input Safety (L1 regex injection + PII detection; optional Lakera Guard L2)
-  → Query Routing (local sentence-transformers, all-MiniLM-L6-v2, YAML routes)
-  → Query Expansion (optional — multi-query via OpenRouter Claude Haiku)
-  → Retrieval (Qdrant + cosine dedup + Cohere rerank + RRF)
-  → Context Compression (BM25 sub-scoring + token budget enforcement)
-  → Generation (OpenRouter — Claude Sonnet 4.5 default, Haiku fallback)
-  → Output Quality (HHEM hallucination check — real CPU inference, no API key)
-  → Observability (Langfuse tracing + structlog JSON logging)
+  -> Input Safety (L1 regex injection + PII detection; optional Lakera Guard L2)
+  -> Query Routing (local sentence-transformers, all-MiniLM-L6-v2, YAML routes)
+  -> Query Expansion (optional -- multi-query via OpenRouter Claude Haiku)
+  -> Retrieval (Qdrant + cosine dedup + Cohere rerank + RRF)
+  -> Context Compression (BM25 sub-scoring + token budget enforcement)
+  -> Generation (OpenRouter -- Claude Sonnet 4.5 default, Haiku fallback)
+  -> Output Quality (HHEM hallucination check -- real CPU inference, no API key)
+  -> Observability (Langfuse tracing + structlog JSON logging + Prometheus metrics)
 User Response
 ```
-
-## Current Status — Wave 3 Complete
-
-| Wave | Focus | Status | Tests |
-|------|-------|--------|-------|
-| 1 | Retrieval Quality Foundation | Complete | 31 unit tests |
-| 2 | Input Safety & Query Intelligence | Complete | 45+ unit tests |
-| 3 | Output Quality & Tracing | Complete | 175 pass, 1 skip |
-
-**7/12 pipeline stages run real logic.** 4 are mocked (Qdrant, Cohere rerank, LLM generation, embeddings — all require API keys or services). 1 skipped (Lakera L2 — needs API key).
 
 ## Quick Start
 
 ```bash
-# Install
+# 1. Install dependencies
 pip install -e ".[dev,eval]"
 python -m spacy download en_core_web_sm
 
-# Run tests (no API keys needed)
-make test                    # unit tests only
-make lint                    # ruff check
-make typecheck               # mypy
+# 2. Configure environment
+cp .env.example .env
+# Edit .env -- set OPENROUTER_API_KEY at minimum
 
-# Run eval tests (needs OPENROUTER_API_KEY)
-OPENROUTER_API_KEY=sk-or-... make test-eval
+# 3. Start infrastructure (Qdrant, Langfuse, Redis)
+make infra
 
-# Start infrastructure (Docker)
-make infra                   # Qdrant, Langfuse, Redis, Postgres
+# 4. Start the API server
+make dev
 
-# Start the API server
-make dev                     # uvicorn on port 8000
+# 5. Verify health
+curl http://localhost:8000/health
+```
+
+## Running in Production
+
+```bash
+# Start all services via Docker Compose
+docker compose up -d
+
+# Verify environment
+python scripts/validate_environment.py
+
+# Ingest documents
+python scripts/ingest_documents.py \
+  --input-dir docs/sample_corpus/ \
+  --user-id system \
+  --tenant-id default
+
+# Start monitoring stack (Prometheus + Grafana)
+docker compose -f docker-compose.monitoring.yaml up -d
+
+# Access dashboards
+# Pipeline API:  http://localhost:8000
+# Grafana:       http://localhost:3001 (admin/admin)
+# Prometheus:    http://localhost:9090
+# Langfuse:      http://localhost:3100
+# Qdrant:        http://localhost:6333/dashboard
+```
+
+See [docs/deployment-guide.md](docs/deployment-guide.md) for full deployment instructions.
+
+## Running Tests
+
+```bash
+# Unit tests (294 pass)
+make test
+
+# Lint
+make lint
+
+# Type check
+make typecheck
+
+# All quality checks
+make all-tests
+
+# Integration tests (requires Docker services + API keys)
+make test-integration
+
+# Eval tests (requires OPENROUTER_API_KEY)
+make test-eval
 
 # E2E trace (mocked external deps, real local components)
-python3 -m scripts.run_e2e_trace
+python -m scripts.run_e2e_trace
+
+# Load test
+python scripts/load_test.py --queries 10 --concurrency 1
+
+# Adversarial security tests
+python scripts/run_adversarial_tests.py
 ```
+
+## Service Ports
+
+| Service       | Port | Purpose                          |
+|---------------|------|----------------------------------|
+| Pipeline API  | 8000 | FastAPI (`/query`, `/health`, `/metrics`) |
+| Qdrant HTTP   | 6333 | Vector store                     |
+| Qdrant gRPC   | 6334 | Vector store (internal)          |
+| Langfuse      | 3100 | Trace viewer                     |
+| Langfuse DB   | 5433 | PostgreSQL for Langfuse          |
+| Redis         | 6379 | Caching                          |
+| Prometheus    | 9090 | Metrics                          |
+| Grafana       | 3001 | Dashboards                       |
+
+## Environment Variables
+
+| Variable             | Required | Description                          |
+|----------------------|----------|--------------------------------------|
+| `OPENROUTER_API_KEY` | Yes      | LLM generation and query expansion   |
+| `COHERE_API_KEY`     | No       | Reranking (passthrough fallback)     |
+| `LAKERA_API_KEY`     | No       | L2 ML injection detection            |
+| `QDRANT_HOST`        | No       | Qdrant host (default: `localhost`)   |
+| `QDRANT_PORT`        | No       | Qdrant port (default: `6333`)        |
+| `PIPELINE_ENV`       | No       | `development` or `production`        |
+| `LOG_LEVEL`          | No       | Logging level (default: `INFO`)      |
+| `LOG_FORMAT`         | No       | `console` or `json`                  |
+| `API_KEY_ROLES`      | No       | RBAC key-role mappings               |
+
+See `.env.example` for all variables.
 
 ## Configuration
 
-| File | Purpose |
-|------|---------|
-| `pipeline_config.yaml` | Master config — safety, routing, query expansion, hallucination, generation |
-| `.env` / `.env.example` | API keys: `OPENROUTER_API_KEY`, `COHERE_API_KEY`, `LAKERA_API_KEY` |
-| `src/pipeline/routing/routes.yaml` | 5 routes with 12-13 utterances each |
-| `environments/{base,development,production}.yaml` | Environment-specific config overlays |
+| File                           | Purpose                                        |
+|--------------------------------|------------------------------------------------|
+| `pipeline_config.yaml`        | Master config (safety, routing, generation, compliance) |
+| `.env` / `.env.example`       | API keys and service endpoints                 |
+| `src/pipeline/routing/routes.yaml` | Semantic routing rules (5 routes)         |
+| `environments/{base,development,production}.yaml` | Environment-specific overrides |
+| `experiment_configs/flags.yaml` | Feature flag configuration                   |
+| `promptfoo.config.yaml`       | Promptfoo eval configuration                   |
 
-## Key Dependencies
+## Project Structure
 
-| Purpose | Package |
-|---------|---------|
-| LLM Gateway | `openai` SDK → OpenRouter (`https://openrouter.ai/api/v1`) |
-| Routing Embeddings | `sentence-transformers` (`all-MiniLM-L6-v2`, 384-dim, CPU, no API key) |
-| Hallucination Check | `transformers` (`vectara/hallucination_evaluation_model`, CPU) |
-| Vector Store | `qdrant-client` |
-| Reranking | `cohere` |
-| BM25 Compression | `rank-bm25` + `spacy` |
-| Tracing | `langfuse` (local JSON fallback when no server) |
-| Eval | `deepeval` (faithfulness via OpenRouter) |
+```
+src/
+  main.py                  # FastAPI app factory
+  config/                  # Pydantic settings + YAML config
+  models/                  # Schemas, RBAC, metadata
+  api/                     # Auth, DI, v1 routes
+  pipeline/                # 12-stage pipeline (safety, routing, retrieval, generation, quality)
+  observability/           # Tracing, audit log, metrics, drift/canary monitoring
+  experimentation/         # Feature flags, shadow mode, A/B analysis
+  flywheel/                # Failure triage, annotation, dataset expansion
+  services/                # Deletion, feedback, retention
+tests/
+  unit/                    # 47 test files (~294 tests)
+  eval/                    # DeepEval faithfulness tests
+  integration/             # E2E pipeline tests
+scripts/                   # Operational scripts (ingest, eval, triage, load test)
+docs/                      # PRD, specs, ADRs, baselines, runbooks
+monitoring/                # Prometheus + Grafana config
+environments/              # Environment-specific config overlays
+```
+
+## Wave Completion Status
+
+| Wave | Focus                              | Tests |
+|------|------------------------------------|-------|
+| 1    | Retrieval Quality Foundation       | 31    |
+| 2    | Input Safety & Query Intelligence  | 45+   |
+| 3    | Output Quality & Tracing           | 175   |
+| 4    | Compliance & Data Governance       | 239   |
+| 5    | Deployment & Experimentation       | 283   |
+| 6    | Observability & Monitoring         | 318   |
+| 7    | Data Flywheel & Continuous Improvement | 352 |
+
+All 7 waves complete. 10/12 pipeline stages run real logic. 2 stages skipped without API keys (Cohere rerank, Lakera L2).
 
 ## Documentation
 
-| Doc | Description |
-|-----|-------------|
-| [CLAUDE.md](CLAUDE.md) | Project context, structure, decisions, open issues |
-| [01 — Tool Gap Fixes](docs/01-tool-gap-fixes.md) | Tool selections for architectural gaps |
-| [02 — PRD](docs/02-prd.md) | Product requirements and success criteria |
-| [03 — Implementation Plan](docs/03-implementation-plan.md) | 3 phases, 8 waves, 24-week rollout |
-| [04 — Technical Specs](docs/04-technical-specs.md) | Infrastructure, schemas, APIs, config, security |
+| Document | Description |
+|----------|-------------|
+| [Deployment Guide](docs/deployment-guide.md) | Full deployment instructions, Docker, monitoring |
+| [Operations Runbook](docs/runbooks/operations.md) | Daily/weekly/monthly ops, incident response |
+| [Alert Playbooks](docs/runbooks/alerting-playbooks.md) | 11 alerts with investigation/remediation |
+| [ADR Index](docs/adr/README.md) | 13 architecture decision records |
+| [PRD](docs/02-prd.md) | Product requirements and success criteria |
+| [Implementation Plan](docs/03-implementation-plan.md) | 3 phases, 8 waves |
+| [Technical Specs](docs/04-technical-specs.md) | Infrastructure, schemas, APIs, security |
+| [Security Review](docs/security-review.md) | Security assessment and findings |
+| [Production Baseline](docs/baselines/production-baseline.json) | Performance and quality baselines |
 
-## Phases
+## License
 
-- **Phase 1 (Weeks 1–10):** Core pipeline — retrieval, safety, quality, tracing *(Waves 1-3 complete)*
-- **Phase 2 (Weeks 8–18):** Production hardening — compliance, experimentation, monitoring
-- **Phase 3 (Weeks 16–24):** Continuous improvement — data flywheel, optimization
+See [LICENSE](LICENSE) for details.

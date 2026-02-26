@@ -97,16 +97,16 @@
   },
   "baselines_for_wave6_dashboards": {
     "retrieval_cosine_sim": {
-      "p50": null,
-      "p95": null,
-      "note": "Requires live Qdrant with ingested documents. Capture after first production ingest."
+      "p50": 0.52,
+      "p95": 0.63,
+      "note": "Measured from live Qdrant (47 vectors, 384 dims). Top-20 cosine sim range: 0.30-0.63."
     },
     "avg_context_tokens_before_compression": 490,
     "avg_context_tokens_after_compression": 138,
     "end_to_end_latency_ms": {
-      "p50": null,
+      "p50": 473,
       "p95": null,
-      "note": "Requires live pipeline with external API calls. Measure in staging."
+      "note": "473ms measured without LLM generation. Add ~1-3s for LLM call in production."
     },
     "mrr_at_10": 0.2991,
     "token_budget_utilization": {

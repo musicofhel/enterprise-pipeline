@@ -1,9 +1,40 @@
+# environments/production.yaml — Production overrides
+# Merged on top of pipeline_config.yaml when PIPELINE_ENV=production
+
 generation:
-  temperature: 0.05
+  temperature: 0.05  # More deterministic in production
+  max_output_tokens: 1500  # Allow longer answers
+
+hallucination:
+  threshold_pass: 0.85  # Start conservative, can tighten later
+  threshold_warn: 0.65
+
+safety:
+  injection_detection:
+    layer_2: "lakera_guard"  # Enable L2 when key is available
+
+query_expansion:
+  enabled: true
+  num_queries: 3
 
 observability:
-  langfuse_sample_rate: 1.0
+  langfuse_enabled: true
+  langfuse_sample_rate: 1.0  # 100% tracing in production initially
+  monitoring:
+    daily_eval_sample_size: 100
+    daily_eval_lookback_hours: 24
 
 experimentation:
-  shadow_mode_enabled: true
-  shadow_pipeline_version: "candidate-v1.1.0"
+  shadow_mode:
+    enabled: false  # Disable until baseline established
+  feature_flags:
+    enabled: false  # Disable until baseline established
+
+compliance:
+  deletion_sla_hours: 72
+  audit_log_immutable: true
+  retention:
+    vectors_days: 365
+    traces_days: 90
+    audit_logs_days: 2555
+    feedback_days: 365

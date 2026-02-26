@@ -7,14 +7,15 @@ import json
 import logging
 import random
 import shutil
-import sys
 import tempfile
 import time
 from pathlib import Path
 
+import structlog
+
 # Suppress structlog noise
 logging.disable(logging.CRITICAL)
-import structlog
+
 structlog.configure(
     wrapper_class=structlog.make_filtering_bound_logger(logging.CRITICAL),
 )
@@ -85,7 +86,7 @@ async def check_1_shadow_timing() -> None:
     print(f"  Enabled:  {avg_enabled:.4f} ms avg (50 runs)")
     print(f"  Overhead: {pct_diff:.1f}%")
     print(f"  PASS: {'yes' if pct_diff < 500 else 'NO'}")
-    print(f"  Note: both are <0.1ms — create_task() overhead is negligible")
+    print("  Note: both are <0.1ms — create_task() overhead is negligible")
     print(f"        (absolute diff = {abs(avg_enabled - avg_disabled):.4f} ms)")
     print()
 
@@ -160,7 +161,7 @@ async def check_2_shadow_isolation() -> None:
 
     if primary_traces:
         pt = primary_traces[0]
-        print(f"  PRIMARY trace:")
+        print("  PRIMARY trace:")
         print(f"    trace_id:         {pt['trace_id']}")
         print(f"    pipeline_variant: {pt['feature_flags']['pipeline_variant']}")
         print(f"    spans:            {len(pt['spans'])} spans")
@@ -168,7 +169,7 @@ async def check_2_shadow_isolation() -> None:
 
     if shadow_traces:
         st = shadow_traces[0]
-        print(f"  SHADOW trace:")
+        print("  SHADOW trace:")
         print(f"    trace_id:         {st['trace_id']}")
         print(f"    pipeline_variant: {st['feature_flags']['pipeline_variant']}")
         print(f"    spans:            {len(st['spans'])} spans")
@@ -225,7 +226,7 @@ def check_3_feature_flag_determinism() -> None:
     results = [ff.get_variant("user-abc", "tenant-1") for _ in range(100)]
     unique = set(results)
 
-    print(f"  User: user-abc, Tenant: tenant-1")
+    print("  User: user-abc, Tenant: tenant-1")
     print(f"  100 calls → variant = '{results[0]}'")
     print(f"  Unique variants seen: {unique}")
     print(f"  All identical: {'PASS' if len(unique) == 1 else 'FAIL'}")

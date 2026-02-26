@@ -1,0 +1,130 @@
+{
+  "_meta": {
+    "description": "Real latency baselines captured from live pipeline execution",
+    "captured_at": "2026-02-26",
+    "environment": {
+      "platform": "WSL2 (Linux 6.6.87.2-microsoft-standard-WSL2)",
+      "python": "3.12.12",
+      "cpu": "28 cores (shared with host)",
+      "ram": "24 GB",
+      "qdrant": "localhost:6333 (Docker, 47 vectors ingested)",
+      "embedding_model": "all-MiniLM-L6-v2 (384 dims, CPU)",
+      "hhem_model": "vectara/hallucination_evaluation_model (CPU)"
+    },
+    "notes": [
+      "All measurements are warm (models pre-loaded, caches hot)",
+      "LLM generation excluded (requires OPENROUTER_API_KEY, expected ~1-3s)",
+      "Cohere rerank excluded (requires COHERE_API_KEY, expected ~100-300ms)",
+      "Lakera L2 excluded (requires LAKERA_API_KEY, expected ~30-50ms)"
+    ]
+  },
+  "stage_latencies_ms": {
+    "safety_l1_pii": {
+      "latency_ms": 0.07,
+      "notes": "L1 regex injection + PII regex. Sub-millisecond."
+    },
+    "routing": {
+      "latency_ms": 3.52,
+      "notes": "Local embedding (all-MiniLM-L6-v2) + cosine sim against 69 utterances across 5 routes."
+    },
+    "embedding_single_query": {
+      "latency_ms": 3.88,
+      "dimensions": 384,
+      "notes": "Single query embedding via all-MiniLM-L6-v2 on CPU. Warm model."
+    },
+    "retrieval_qdrant": {
+      "latency_ms": 8.99,
+      "results_count": 20,
+      "top_k": 20,
+      "collection_size": 47,
+      "notes": "Cosine similarity search in Qdrant. Small collection (47 vectors)."
+    },
+    "deduplication": {
+      "latency_ms": 35.16,
+      "input_count": 20,
+      "output_count": 20,
+      "notes": "Character n-gram similarity (threshold 0.95). No duplicates found in this run."
+    },
+    "bm25_compression": {
+      "latency_ms": 2.06,
+      "input_chunks": 20,
+      "output_chunks": 20,
+      "notes": "BM25 sub-scoring drops low-relevance sentences within chunks."
+    },
+    "token_budget": {
+      "latency_ms": 75.96,
+      "chunks_before": 20,
+      "chunks_after": 14,
+      "budget_tokens": 3000,
+      "actual_tokens": 2989,
+      "notes": "Tiktoken token counting + budget enforcement."
+    },
+    "hhem_hallucination_check": {
+      "latency_ms": 343.79,
+      "score": 0.9679,
+      "passed": true,
+      "num_chunks": 3,
+      "aggregation": "max",
+      "notes": "Warm HHEM model on CPU. Cold start adds ~900ms."
+    }
+  },
+  "total_without_llm_ms": 473.43,
+  "routing_accuracy": {
+    "test_date": "2026-02-26",
+    "accuracy": "2/5 (40%)",
+    "threshold": 0.15,
+    "model": "all-MiniLM-L6-v2",
+    "results": [
+      {
+        "query": "What is the company's remote work policy?",
+        "expected": "rag_knowledge_base",
+        "actual": "rag_knowledge_base",
+        "confidence": 0.2911,
+        "correct": true
+      },
+      {
+        "query": "How do I report a security incident?",
+        "expected": "rag_knowledge_base",
+        "actual": "escalate_human",
+        "confidence": 0.2635,
+        "correct": false,
+        "notes": "Semantic overlap between 'report incident' and escalation utterances"
+      },
+      {
+        "query": "What are the pricing tiers?",
+        "expected": "rag_knowledge_base",
+        "actual": "sql_structured_data",
+        "confidence": 0.239,
+        "correct": false,
+        "notes": "Pricing queries semantically close to structured data queries"
+      },
+      {
+        "query": "I need to speak with a human immediately",
+        "expected": "escalate_human",
+        "actual": "escalate_human",
+        "confidence": 0.2834,
+        "correct": true
+      },
+      {
+        "query": "Write me a professional email",
+        "expected": "direct_llm",
+        "actual": "escalate_human",
+        "confidence": 0.2619,
+        "correct": false,
+        "notes": "escalate_human has high avg similarity for many queries, acting as a catch-all"
+      }
+    ],
+    "analysis": "Routing accuracy dropped from 80% (4/5) to 40% (2/5) with updated routes.yaml. The escalate_human route now has 12 diverse utterances that act as semantic attractors for ambiguous queries. The average similarity scoring approach (mean over all utterances) dilutes signal — max similarity per route would likely improve accuracy. Alternatively, adding more specific utterances to rag_knowledge_base and direct_llm would help."
+  },
+  "multi_query_recall": {
+    "test_date": "2026-02-26",
+    "query": "What is the company policy on remote work?",
+    "single_query_results": 10,
+    "multi_query_results": 20,
+    "additional_unique_results": 10,
+    "recall_improvement_pct": 100.0,
+    "single_query_latency_ms": 1386,
+    "multi_query_latency_ms": 43,
+    "notes": "4 query variants (1 original + 3 manual expansions). 100% more unique results. Multi-query latency lower because model was already warm."
+  }
+}

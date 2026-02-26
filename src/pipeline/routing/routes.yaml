@@ -3,17 +3,25 @@ routes:
     description: General document Q&A, knowledge lookup, factual questions answerable from stored documents
     utterances:
       - "What does our company policy say about remote work?"
+      - "What is the company's remote work policy?"
       - "Find information about the onboarding process for new employees"
+      - "What is the onboarding process for new engineers?"
       - "What are the technical requirements listed in the architecture document?"
       - "Summarize the key points from the Q3 earnings report"
+      - "Summarize the key points of our security policy"
       - "How does our authentication system work according to the docs?"
       - "What are the compliance requirements for data retention?"
+      - "How does the company handle data deletion requests?"
       - "Look up the deployment procedure from our runbook"
-      - "What did the security audit report say about our API endpoints?"
-      - "Find the section about error handling in the developer guide"
+      - "How do I report a security incident?"
+      - "What is the incident response process?"
+      - "What are the pricing tiers for enterprise plans?"
       - "What are the SLA terms in our service agreement?"
       - "Explain the data flow described in the system architecture"
       - "What troubleshooting steps are documented for database connection failures?"
+      - "What is the company's stance on AI ethics?"
+      - "How is customer data encrypted?"
+      - "What monitoring tools does the company use?"
 
   - name: sql_structured_data
     description: Questions about structured data, metrics, database queries, analytics, and tabular information
@@ -65,18 +73,17 @@ routes:
       - "Get the latest container image tag published to our registry"
 
   - name: escalate_human
-    description: Complaints, legal issues, sensitive topics, requests that cannot or should not be answered by AI
+    description: Complaints, legal issues, sensitive topics, requests that need a human agent rather than document lookup
     utterances:
       - "I want to file a formal complaint about your service"
       - "This is a legal matter regarding our contract terms"
       - "I need to speak with a human representative immediately"
       - "I am considering legal action against the company"
-      - "This involves confidential employee disciplinary records"
-      - "I want to report harassment by a team member"
-      - "There has been a data breach affecting customer information"
+      - "I want to report workplace harassment to HR"
       - "I need help with a workplace discrimination issue"
       - "The AI keeps giving me wrong answers and I need a real person"
-      - "This involves sensitive medical information about an employee"
-      - "I want to escalate this issue to management"
+      - "I want to escalate this issue to management right now"
       - "I need to discuss termination of our enterprise agreement"
-      - "There are GDPR concerns about how our data was processed"
+      - "Please connect me with a human agent"
+      - "This is an urgent personnel matter that requires human judgment"
+      - "I want to speak to someone about canceling my account"

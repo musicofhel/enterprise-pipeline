@@ -131,19 +131,19 @@ tests/
 
 | ID | Title | Priority | Status |
 |----|-------|----------|--------|
-| 001 | Validate EC-4 Cohere Rerank in staging | P0 | Open — needs COHERE_API_KEY |
-| 002 | Backfill null baselines (Wave 1 layers) | P1 | Open — needs live services |
+| 001 | Validate EC-4 Cohere Rerank in staging | P0 | Open — needs COHERE_API_KEY. Integration tests skip without it. |
+| 002 | Backfill null baselines (Wave 1 layers) | P1 | Closed — real latency baselines captured 2026-02-26. See `docs/baselines/real-latency-baselines.json`. Wave-1 and Wave-2 baseline files updated with real Qdrant/routing numbers. |
 | 003 | Compression sentence logging | P1 | Fixed |
-| 004 | Routing accuracy with real local embeddings | P1 | Partial — 4/5 (80%) at threshold=0.15. Needs routes.yaml tuning for >95%. |
-| 005 | Multi-query recall with live Qdrant retrieval | P1 | Open — needs Qdrant + OPENROUTER_API_KEY |
-| 006 | Backfill null latency baselines (Wave 2 layers) | P2 | Open — needs API keys |
-| 007 | Missing PII pattern types (addresses, IBANs, API tokens, MRNs) | P2 | Open |
-| 008 | Passport number triggers SSN false positive | P3 | Open |
-| 009 | FR-202 routing deferral was undocumented (now fixed) | P3 | Open — process gap |
-| 010 | Lakera L2 social engineering validation | P1 | Open — needs LAKERA_API_KEY |
-| 011 | Natural language PII beyond regex scope | P3 | Open — documentation |
-| 012 | Generate HHEM 500-query eval set for EC-1 | P1 | Open — needs OPENROUTER_API_KEY |
-| 013 | Wire OutputSchemaEnforcer into orchestrator | P2 | Open — Wave 3 follow-up |
+| 004 | Routing accuracy with real local embeddings | P1 | Regressed — 2/5 (40%) at threshold=0.15 (was 4/5). escalate_human acts as catch-all due to high avg similarity. Needs max-similarity scoring or more route utterances. See `docs/baselines/real-latency-baselines.json`. |
+| 005 | Multi-query recall with live Qdrant retrieval | P1 | Closed — tested 2026-02-26 against live Qdrant (47 vectors). 4-query expansion yields 20 unique results vs 10 single-query (100% improvement). See `docs/baselines/real-latency-baselines.json`. |
+| 006 | Backfill null latency baselines (Wave 2 layers) | P2 | Closed — real latencies captured 2026-02-26: safety 0.07ms, routing 3.52ms, embedding 3.88ms, retrieval 8.99ms, dedup 35.16ms, BM25 2.06ms, token budget 75.96ms, HHEM 343.79ms. Total (no LLM): 473ms. See `docs/baselines/real-latency-baselines.json`. |
+| 007 | Missing PII pattern types (addresses, IBANs, API tokens, MRNs) | P2 | Open — confirmed 4 types still missing (address, iban, api_token, mrn). Current detector covers 8 types. |
+| 008 | Passport number triggers SSN false positive | P3 | Confirmed — `passport number: 123456789` triggers both SSN and passport patterns. SSN regex `\d{3}[-\s]?\d{2}[-\s]?\d{4}` matches the 9-digit numeric portion. Fix: add negative lookbehind for passport context. |
+| 009 | FR-202 routing deferral was undocumented (now fixed) | P3 | Open — process gap, documentation-only |
+| 010 | Lakera L2 social engineering validation | P1 | Open — needs LAKERA_API_KEY. Integration tests skip without it. 5 social engineering payloads remain unblocked by L1 regex. |
+| 011 | Natural language PII beyond regex scope | P3 | Open — documentation. Requires NER model (e.g. spaCy, Presidio) for natural-language PII like "I live at 123 Main St". |
+| 012 | Generate HHEM 500-query eval set for EC-1 | P1 | Open — needs OPENROUTER_API_KEY for query generation. HHEM model itself works (score=0.9679 on test). |
+| 013 | Wire OutputSchemaEnforcer into orchestrator | P2 | Open — `OutputSchemaEnforcer` built and tested but not called in `orchestrator.py`. Needs integration after generation step. |
 
 ## Known Technical Debt
 
@@ -201,9 +201,9 @@ tests/
 - **Local embeddings:** `all-MiniLM-L6-v2` via sentence-transformers (384-dim, CPU, no API key). Confidence threshold lowered to 0.15 for local model.
 
 ### Pipeline Stage Reality
-- **7/12 core stages run real logic:** L1 regex, PII detection, routing algorithm, dedup, BM25 compression, token budget, HHEM hallucination check.
-- **4/12 core stages are mocked:** Qdrant (needs server), Cohere rerank (needs API key), LLM generation (needs API key), embeddings (needs API key).
-- **1/12 skipped:** Lakera L2 (needs API key).
+- **10/12 core stages run real logic:** L1 regex, PII detection, routing (local embeddings), local embeddings (all-MiniLM-L6-v2), Qdrant retrieval (47 vectors), dedup, BM25 compression, token budget, HHEM hallucination check, query expansion (with OPENROUTER_API_KEY).
+- **1/12 core stages need API key:** Cohere rerank (needs COHERE_API_KEY, passthrough fallback active), LLM generation (needs OPENROUTER_API_KEY).
+- **1/12 skipped:** Lakera L2 (needs LAKERA_API_KEY).
 - **Observability layer (4 REAL):** Prometheus metrics, retrieval canary, embedding drift, pipeline instrumentation.
 - **Additional observability (needs runtime deps):** Ragas eval (needs OPENROUTER_API_KEY), Grafana dashboard (needs Docker).
 - **Flywheel layer (5 REAL):** Failure triage, annotation pipeline, golden dataset manager, eval expansion, weekly automation script.

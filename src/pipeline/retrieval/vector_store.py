@@ -26,7 +26,7 @@ class VectorStore:
     def __init__(self, client: AsyncQdrantClient) -> None:
         self._client = client
 
-    async def ensure_collection(self, vector_size: int = 1536) -> None:
+    async def ensure_collection(self, vector_size: int = 384) -> None:
         """Create collection if it doesn't exist."""
         collections = await self._client.get_collections()
         existing = [c.name for c in collections.collections]

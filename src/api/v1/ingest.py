@@ -6,7 +6,9 @@ from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 
+from src.api.auth import require_permission
 from src.api.deps import get_orchestrator
+from src.models.rbac import Permission
 from src.models.schemas import IngestResponse
 
 if TYPE_CHECKING:
@@ -15,7 +17,11 @@ if TYPE_CHECKING:
 router = APIRouter()
 
 
-@router.post("/ingest", response_model=IngestResponse)
+@router.post(
+    "/ingest",
+    response_model=IngestResponse,
+    dependencies=[Depends(require_permission(Permission.WRITE_VECTORS))],
+)
 async def ingest(
     file: UploadFile = File(...),
     user_id: str = Form(...),

@@ -95,14 +95,14 @@
       "note": "Requires LAKERA_API_KEY. Expected ~30-50ms per Lakera docs."
     },
     "query_routing": {
-      "p50": null,
+      "p50": 3.52,
       "p95": null,
-      "note": "Now uses local sentence-transformers (all-MiniLM-L6-v2). Expected ~10-50ms for embed + cosine sim."
+      "note": "Measured: 3.52ms warm (embed 1 query + cosine sim vs 69 utterances). all-MiniLM-L6-v2 CPU."
     },
     "query_expansion": {
       "p50": null,
       "p95": null,
-      "note": "Requires OpenRouter LLM call. Expected ~500-1500ms."
+      "note": "Requires OpenRouter LLM call (anthropic/claude-haiku-4-5). Expected ~500-1500ms."
     }
   },
   "cost_metrics": {

@@ -38,6 +38,7 @@ async def feedback(
 @router.post(
     "/feedback/stats",
     response_model=FeedbackStatsResponse,
+    dependencies=[Depends(require_permission(Permission.READ_FEEDBACK))],
 )
 async def feedback_stats(
     feedback_service: FeedbackService = Depends(get_feedback_service),

@@ -56,6 +56,13 @@ services:
     volumes:
       - ./pipeline_config.yaml:/app/pipeline_config.yaml:ro
       - ./prompts:/app/prompts:ro
+      - ./environments:/app/environments:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
 volumes:
   qdrant_data:

@@ -82,8 +82,24 @@ class FeedbackStatsResponse(BaseModel):
     period: str
 
 
+class QdrantServiceStatus(BaseModel):
+    status: str
+    collection: str | None = None
+    vectors: int | None = None
+
+
+class ServiceStatuses(BaseModel):
+    qdrant: QdrantServiceStatus | str
+    openrouter: str
+    cohere: str
+    lakera: str
+    langfuse: str
+
+
 class HealthResponse(BaseModel):
     status: str = "ok"
+    services: ServiceStatuses | None = None
+    version: str | None = None
 
 
 class ReadyResponse(BaseModel):
