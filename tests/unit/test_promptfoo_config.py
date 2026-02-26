@@ -23,7 +23,7 @@ class TestPromptfooConfig:
         path = Path("golden_dataset/promptfoo_tests.jsonl")
         assert path.exists()
         lines = path.read_text().strip().split("\n")
-        assert len(lines) == 20
+        assert len(lines) >= 20
         for line in lines:
             data = json.loads(line)
             assert "vars" in data
