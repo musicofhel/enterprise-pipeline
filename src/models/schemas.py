@@ -72,6 +72,16 @@ class FeedbackResponse(BaseModel):
     status: str = "recorded"
 
 
+class FeedbackStatsResponse(BaseModel):
+    total_responses: int
+    feedback_received: int
+    feedback_rate: float
+    positive: int
+    negative: int
+    with_correction: int
+    period: str
+
+
 class HealthResponse(BaseModel):
     status: str = "ok"
 

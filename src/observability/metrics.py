@@ -221,6 +221,49 @@ SHADOW_MODE_BUDGET_REMAINING_USD = Gauge(
     registry=REGISTRY,
 )
 
+# ---------------------------------------------------------------------------
+# Feedback metrics (7.1)
+# ---------------------------------------------------------------------------
+FEEDBACK_RECEIVED_TOTAL = Counter(
+    "feedback_received_total",
+    "Total feedback events received",
+    ["rating"],
+    registry=REGISTRY,
+)
+
+FEEDBACK_CORRECTION_RECEIVED_TOTAL = Counter(
+    "feedback_correction_received_total",
+    "Feedback events that include a correction",
+    registry=REGISTRY,
+)
+
+FEEDBACK_RATE = Gauge(
+    "feedback_rate",
+    "Feedback count / response count over rolling window",
+    registry=REGISTRY,
+)
+
+# ---------------------------------------------------------------------------
+# Annotation metrics (7.3)
+# ---------------------------------------------------------------------------
+ANNOTATIONS_PENDING_TOTAL = Gauge(
+    "annotations_pending_total",
+    "Number of pending annotation tasks",
+    registry=REGISTRY,
+)
+
+ANNOTATIONS_COMPLETED_TOTAL = Gauge(
+    "annotations_completed_total",
+    "Number of completed annotation tasks",
+    registry=REGISTRY,
+)
+
+ANNOTATIONS_EXPORTED_TOTAL = Counter(
+    "annotations_exported_total",
+    "Total annotations exported to golden dataset",
+    registry=REGISTRY,
+)
+
 
 def get_metrics_text() -> bytes:
     """Generate Prometheus text format output from the registry."""

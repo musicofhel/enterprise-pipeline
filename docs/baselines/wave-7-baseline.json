@@ -1,0 +1,79 @@
+{
+  "wave": 7,
+  "title": "Data Flywheel & Continuous Improvement",
+  "date": "2026-02-26",
+  "tests": {
+    "total_passed": 352,
+    "total_skipped": 21,
+    "new_tests": 34,
+    "test_files_new": 6
+  },
+  "deliverables": {
+    "7.1": {
+      "name": "User Feedback Collection",
+      "status": "complete",
+      "tests": 7,
+      "key_files": [
+        "src/services/feedback_service.py",
+        "src/api/v1/feedback.py"
+      ]
+    },
+    "7.2": {
+      "name": "Failure Triage Workflow",
+      "status": "complete",
+      "tests": 5,
+      "key_files": [
+        "src/flywheel/failure_triage.py",
+        "scripts/run_failure_triage.py"
+      ]
+    },
+    "7.3": {
+      "name": "Annotation Pipeline",
+      "status": "complete",
+      "tests": 7,
+      "key_files": [
+        "src/flywheel/annotation.py",
+        "scripts/annotate.py"
+      ]
+    },
+    "7.4": {
+      "name": "Golden Dataset Expansion",
+      "status": "complete",
+      "tests": 6,
+      "key_files": [
+        "src/flywheel/dataset_manager.py",
+        "scripts/expand_golden_dataset.py"
+      ]
+    },
+    "7.5": {
+      "name": "Regression Eval Suite Expansion",
+      "status": "complete",
+      "tests": 5,
+      "key_files": [
+        "src/flywheel/eval_expansion.py"
+      ]
+    },
+    "7.6": {
+      "name": "Weekly Flywheel Automation",
+      "status": "complete",
+      "tests": 4,
+      "key_files": [
+        "scripts/run_weekly_flywheel.py"
+      ]
+    }
+  },
+  "exit_criteria": {
+    "EC-1": "Feedback collected with stats endpoint and Prometheus metrics",
+    "EC-2": "Weekly failure triage produces classified report with clustering",
+    "EC-3": "Annotation pipeline generates tasks, accepts submissions, exports to golden dataset",
+    "EC-4": "Golden dataset grows via import with dedup, validation, and versioning",
+    "EC-5": "Eval suite expansion covers all known failure patterns"
+  },
+  "pipeline_stage_reality": {
+    "core_real": "7/12 (L1 regex, PII, routing, dedup, BM25, token budget, HHEM)",
+    "core_mocked": "4/12 (Qdrant, Cohere, LLM, embeddings)",
+    "core_skipped": "1/12 (Lakera L2)",
+    "observability_real": "4 (Prometheus, canary, drift, instrumentation)",
+    "flywheel_real": "5 (triage, annotation, dataset expansion, eval expansion, weekly script)"
+  }
+}

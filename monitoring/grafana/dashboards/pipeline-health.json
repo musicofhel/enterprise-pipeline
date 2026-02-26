@@ -134,8 +134,37 @@
       "type": "stat"
     },
     {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit" }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 18 },
+      "id": 20,
+      "targets": [
+        {
+          "expr": "feedback_rate",
+          "legendFormat": "Feedback Rate"
+        }
+      ],
+      "title": "User Feedback Rate",
+      "type": "gauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 18 },
+      "id": 21,
+      "targets": [
+        {
+          "expr": "rate(feedback_received_total[1h])",
+          "legendFormat": "{{rating}}"
+        }
+      ],
+      "title": "Feedback by Rating",
+      "type": "timeseries"
+    },
+    {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 },
       "id": 300,
       "title": "Row 3 — Retrieval Health",
       "type": "row"

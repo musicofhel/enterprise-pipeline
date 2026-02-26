@@ -16,6 +16,18 @@ Production-grade RAG pipeline built in 3 phases across 8 waves. Python + FastAPI
 - **Wave 4 (Compliance & Data Governance):** Complete. Tag: `wave-4-complete`. 239 tests passing, 21 skipped (DeepEval API key tests). Lint clean, 0 new mypy errors. HHEM restored (transformers 5.2.0 → 4.57.6). Lockfile + version guard added.
 - **Wave 5 (Deployment & Experimentation):** Complete. Tag: `wave-5-complete`. 283 tests passing, 21 skipped. Lint clean, 0 new mypy errors. All local implementations (no Temporal, no LaunchDarkly).
 - **Wave 6 (Observability & Monitoring):** Complete. Tag: `wave-6-complete`. 318 tests passing, 21 skipped. Lint clean, 0 new mypy errors. All local and free (Prometheus + Grafana + Arize Phoenix).
+- **Wave 7 (Data Flywheel & Continuous Improvement):** Complete. Tag: `wave-7-complete`. 352 tests passing, 21 skipped. Lint clean, 0 new mypy errors. Full feedback → triage → annotation → dataset expansion → eval expansion cycle.
+
+### Wave 7 Deliverables
+
+| # | Deliverable | Status | Tests |
+|---|-------------|--------|-------|
+| 7.1 | User feedback collection | `FeedbackService` extended — stats endpoint, Prometheus metrics (feedback_received_total, feedback_rate), Grafana panels | 7 tests |
+| 7.2 | Failure triage workflow | `FailureTriageService` — scan traces, classify 6 failure types, cluster by embedding similarity, triage report | 5 tests |
+| 7.3 | Annotation pipeline | `AnnotationService` — generate tasks from triage, submit annotations, export to golden dataset JSONL, audit trail | 7 tests |
+| 7.4 | Golden dataset expansion | `GoldenDatasetManager` — import annotations, embedding dedup (0.95 cosine), validation, versioning (metadata.json) | 6 tests |
+| 7.5 | Regression eval suite expansion | `EvalSuiteExpander` — auto-generate eval tests from annotations, coverage report, gap detection | 5 tests |
+| 7.6 | Weekly flywheel automation | `run_weekly_flywheel.py` — full cycle: triage → annotate → import → expand → report (two-phase with human-in-the-loop) | 4 tests |
 
 ### Wave 6 Deliverables
 
@@ -88,7 +100,7 @@ src/
 │   ├── tracing.py                  # Langfuse SDK + local JSON fallback
 │   ├── audit_log.py                # Immutable audit log (WORM — no delete/update)
 │   ├── logging.py                  # structlog JSON/console config with trace context
-│   ├── metrics.py                  # Central Prometheus metrics registry (28 metrics)
+│   ├── metrics.py                  # Central Prometheus metrics registry (34 metrics)
 │   ├── embedding_monitor.py        # Embedding drift detection (cosine centroid shift)
 │   ├── retrieval_canary.py         # Retrieval quality canary (rolling window alerts)
 │   ├── daily_eval.py               # Daily Ragas eval runner (OpenRouter)
@@ -98,13 +110,19 @@ src/
 │   ├── feature_flags.py            # FeatureFlagService (local YAML, hash-based)
 │   ├── shadow_mode.py              # ShadowRunner + ShadowComparison
 │   └── analysis.py                 # ExperimentAnalyzer (scipy stats)
+├── flywheel/
+│   ├── __init__.py                 # Package exports
+│   ├── failure_triage.py           # FailureTriageService (scan, classify, cluster, triage)
+│   ├── annotation.py               # AnnotationService (generate, submit, export)
+│   ├── dataset_manager.py          # GoldenDatasetManager (import, dedup, versioning)
+│   └── eval_expansion.py           # EvalSuiteExpander (coverage report, auto-expansion)
 ├── services/
 │   ├── deletion_service.py         # Right-to-deletion orchestrator (vectors + traces + feedback)
-│   ├── feedback_service.py         # Feedback storage with audit trail
+│   ├── feedback_service.py         # Feedback collection + stats + Prometheus metrics
 │   └── retention_checker.py        # TTL-based data retention enforcement
 └── utils/tokens.py                 # tiktoken helpers
 tests/
-├── unit/                           # 41 test files (~269 tests)
+├── unit/                           # 47 test files (~303 tests)
 ├── eval/                           # DeepEval faithfulness + exit criteria (~49 tests)
 └── integration/                    # E2E pipeline + Cohere/Lakera stubs
 ```
@@ -155,13 +173,23 @@ tests/
 - **Config models**: `ShadowModeConfig` and `FeatureFlagConfig` nested under `ExperimentationConfig` in `pipeline_config.py`.
 
 ### Observability (Wave 6)
-- **Prometheus metrics**: Dedicated `CollectorRegistry` in `src/observability/metrics.py`. 28 metrics across 6 groups (pipeline, safety, hallucination, LLM, retrieval, experimentation). `/metrics` endpoint on health router.
+- **Prometheus metrics**: Dedicated `CollectorRegistry` in `src/observability/metrics.py`. 34 metrics across 8 groups (pipeline, safety, hallucination, LLM, retrieval, experimentation, feedback, annotations). `/metrics` endpoint on health router.
 - **Embedding drift**: Cosine centroid shift + spread change detection. Reference embeddings set once, current embeddings buffered in deque. Min 10 samples for drift check.
 - **Retrieval canary**: Rolling window (default 1000) + baseline window (default 7000). p50 drop >10% = CRITICAL. Empty result rate >5% = CRITICAL. Wired into orchestrator after retrieval stage.
 - **Daily Ragas eval**: Uses OpenRouter (claude-haiku-4-5) for LLM judge. Faithfulness, ContextPrecision, AnswerRelevancy. Graceful skip without API key. Reports saved to `eval_reports/`.
 - **Grafana dashboard**: Auto-provisioned via `docker-compose.monitoring.yaml`. 5 rows, 17 panels. Port 3001 (Grafana), 9090 (Prometheus).
 - **Alert playbooks**: 11 alerts documented in `docs/runbooks/alerting-playbooks.md`. Each has Trigger/Investigation/Remediation/Escalation.
 - **openai SDK**: Pin updated from `<2` to `<3` for Ragas compatibility. All existing tests pass with openai 2.x.
+
+### Flywheel (Wave 7)
+- **Feedback service**: Rolling window rate tracking (response vs feedback timestamps) in-memory deques — doesn't survive process restarts. Redis/file counter would be more robust.
+- **Failure triage**: Clustering uses greedy cosine similarity (threshold 0.7). DBSCAN/HDBSCAN would handle variable-density clusters better.
+- **Annotation pipeline**: File-based JSON (pending/completed dirs). Functional but minimal — team workflows would benefit from web UI or Argilla integration.
+- **Dataset dedup**: Embedding similarity (0.95 cosine) requires caller-supplied `embed_fn`. No built-in embedding model.
+- **Eval expansion**: Auto-generates Promptfoo and DeepEval test entries from annotations. Coverage report tracks per-category gaps.
+- **Weekly flywheel**: Two-phase (triage+annotate → import+expand+report). Phase 2 requires `--continue` flag after human annotation.
+- **Prometheus metrics**: 6 new metrics (feedback_received_total, feedback_correction_received_total, feedback_rate, annotations_pending/completed/exported).
+- **Grafana**: 2 new panels (User Feedback Rate gauge, Feedback by Rating timeseries). Dashboard now 5 rows, 19 panels.
 
 ### Injection Defense
 - L1 regex blocks 15/20 adversarial payloads.
@@ -178,6 +206,7 @@ tests/
 - **1/12 skipped:** Lakera L2 (needs API key).
 - **Observability layer (4 REAL):** Prometheus metrics, retrieval canary, embedding drift, pipeline instrumentation.
 - **Additional observability (needs runtime deps):** Ragas eval (needs OPENROUTER_API_KEY), Grafana dashboard (needs Docker).
+- **Flywheel layer (5 REAL):** Failure triage, annotation pipeline, golden dataset manager, eval expansion, weekly automation script.
 
 ### Compliance (Wave 4)
 - **RBAC**: `src/api/auth.py` — API key → Role mapping from `API_KEY_ROLES` env var. `require_permission()` enforces DELETE_USER_DATA, WRITE_FEEDBACK, etc.
@@ -210,6 +239,11 @@ tests/
 - **PipelineInstrumentation middleware** (Wave 6): Static methods for all Prometheus updates. Keeps orchestrator clean — one-line calls instead of inline counter/histogram updates.
 - **Grafana port 3001** (Wave 6): Avoids conflict with any backend on port 3000. Prometheus on 9090 (default).
 - **openai <3 pin** (Wave 6): Ragas requires openai>=2. Verified all existing tests pass with openai 2.x. Updated from `<2` to `<3`.
+- **Local file-based annotation over Argilla** (Wave 7): JSON files in `annotations/pending/` and `annotations/completed/`. Simpler, testable, no external dependency. Interface designed for Argilla plug-in later.
+- **Greedy cosine clustering for triage** (Wave 7): Threshold 0.7 for grouping similar failure queries. Simpler than DBSCAN but sufficient for triage reports.
+- **Embedding dedup at 0.95 cosine threshold** (Wave 7): Prevents near-duplicate pollution in golden dataset. Caller supplies `embed_fn` — no built-in model dependency.
+- **Semver versioning for golden dataset** (Wave 7): `metadata.json` with version, created_at, last_updated, history entries. Minor bump on each import (1.0.0 → 1.1.0).
+- **Two-phase flywheel with human-in-the-loop** (Wave 7): Phase 1 (triage + generate tasks) runs automatically. Human annotation between phases. Phase 2 (import + expand + report) requires `--continue` flag.
 
 ## Key Configuration
 
@@ -221,12 +255,14 @@ tests/
 - `promptfoo.config.yaml` — Promptfoo eval configuration (OpenRouter provider)
 - `docker-compose.monitoring.yaml` — Prometheus (9090) + Grafana (3001) monitoring stack
 - `monitoring/prometheus.yml` — Prometheus scrape config
-- `monitoring/grafana/dashboards/pipeline-health.json` — Grafana dashboard (5 rows, 17 panels)
+- `monitoring/grafana/dashboards/pipeline-health.json` — Grafana dashboard (5 rows, 19 panels)
+- `annotations/` — Annotation task storage (pending/ and completed/ subdirs)
+- `reports/` — Weekly flywheel triage reports
 
 ## Running Tests
 
 ```bash
-# All unit + eval tests (318 pass, 21 skip — DeepEval needs API key)
+# All unit + eval tests (352 pass, 21 skip — DeepEval needs API key)
 # conftest.py auto-bridges OPENROUTER_API_KEY → OPENAI_API_KEY + OPENAI_BASE_URL for DeepEval
 .venv/bin/python -m pytest tests/ --ignore=tests/integration -q
 
@@ -252,4 +288,21 @@ python3 scripts/run_daily_eval.py --traces-dir traces/local --output-dir eval_re
 
 # Arize Phoenix embedding viewer
 python3 scripts/launch_phoenix.py
+
+# Failure triage (scan recent traces, classify failures, cluster)
+python3 scripts/run_failure_triage.py --days 7 --traces-dir traces/local --output reports/
+
+# Annotation workflow
+python3 scripts/annotate.py next                    # Get next pending task
+python3 scripts/annotate.py submit <trace_id> ...   # Submit annotation
+python3 scripts/annotate.py export --output-dir golden_dataset/
+
+# Golden dataset management
+python3 scripts/expand_golden_dataset.py import --source annotations/completed --label manual
+python3 scripts/expand_golden_dataset.py stats
+python3 scripts/expand_golden_dataset.py coverage
+
+# Weekly flywheel (two-phase)
+python3 scripts/run_weekly_flywheel.py --week 2026-W09        # Phase 1: triage + annotate
+python3 scripts/run_weekly_flywheel.py --week 2026-W09 --continue  # Phase 2: import + expand
 ```
