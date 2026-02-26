@@ -51,3 +51,14 @@ downloads/
 
 # Local traces
 traces/
+
+# Local data stores (Wave 4 compliance)
+audit_logs/
+deletions/
+feedback/
+
+# Qdrant local storage
+qdrant_storage/
+
+# DeepEval cache
+.deepeval/

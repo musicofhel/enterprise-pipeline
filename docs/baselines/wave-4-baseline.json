@@ -69,14 +69,15 @@
     }
   },
   "test_counts": {
-    "total_tests": 238,
-    "passing": 238,
+    "total_tests": 239,
+    "passing": 239,
     "skipped": 21,
     "failing": 0,
     "breakdown": {
       "unit_tests": 200,
       "eval_tests": 38,
       "eval_tests_skipped": 21,
+      "dependency_guards": 1,
       "new_in_wave_4": {
         "audit_models": 4,
         "audit_log_service": 8,
@@ -161,8 +162,13 @@
   "dependency_fix": {
     "issue": "transformers 5.2.0 installed in venv, violating pyproject.toml pin <5",
     "symptom": "HHEM model AttributeError: 'HHEMv2ForSequenceClassification' has no attribute 'all_tied_weights_keys'",
-    "fix": "pip install 'transformers>=4.40,<5' → installed 4.57.6",
+    "fix": "pip install 'transformers>=4.36.0,<5.0.0' → installed 4.57.6",
+    "root_cause": "unstructured-inference 1.5.2 depends on transformers without upper bound",
     "tests_restored": 7,
-    "recommendation": "Add lockfile or CI check for version constraint compliance"
+    "prevention": {
+      "lockfile": "requirements.lock pins transformers==4.57.6",
+      "ci_guard": "tests/unit/test_dependency_guards.py — fails if transformers major >= 5",
+      "pyproject_pin": "transformers>=4.36.0,<5.0.0 (explicit floor and ceiling)"
+    }
   }
 }

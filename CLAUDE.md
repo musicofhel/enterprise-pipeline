@@ -13,7 +13,7 @@ Production-grade RAG pipeline built in 3 phases across 8 waves. Python + FastAPI
 - **Wave 1 (Retrieval Quality Foundation):** Complete. Tag: `wave-1-complete`.
 - **Wave 2 (Input Safety & Query Intelligence):** Complete. Tag: `wave-2-complete`. Verification follow-up complete.
 - **Wave 3 (Output Quality & Tracing):** Complete. Tag: `wave-3-complete`. 175 tests passing, 1 skipped (empty context edge case). Lint and typecheck clean (0 new errors).
-- **Wave 4 (Compliance & Data Governance):** Complete. Tag: `wave-4-complete`. 238 tests passing, 21 skipped (DeepEval API key tests). Lint clean, 0 new mypy errors. HHEM restored (transformers 5.2.0 → 4.57.6).
+- **Wave 4 (Compliance & Data Governance):** Complete. Tag: `wave-4-complete`. 239 tests passing, 21 skipped (DeepEval API key tests). Lint clean, 0 new mypy errors. HHEM restored (transformers 5.2.0 → 4.57.6). Lockfile + version guard added.
 
 ### Wave 4 Deliverables
 
@@ -161,7 +161,7 @@ tests/
 ## Running Tests
 
 ```bash
-# All unit + eval tests (238 pass, 21 skip — DeepEval needs API key)
+# All unit + eval tests (239 pass, 21 skip — DeepEval needs API key)
 # conftest.py auto-bridges OPENROUTER_API_KEY → OPENAI_API_KEY + OPENAI_BASE_URL for DeepEval
 .venv/bin/python -m pytest tests/ --ignore=tests/integration -q
 
