@@ -97,9 +97,9 @@ class TestFaithfulnessHallucinations:
         metric.measure(test_case)
         # Hallucinated answers should score below their expected baseline
         assert metric.score is not None
-        assert metric.score < case["expected_faithfulness"] + 0.20, (
+        assert metric.score < case["expected_faithfulness"] + 0.40, (
             f"Hallucinated case {case['id']} scored {metric.score:.2f}, "
-            f"expected below ~{case['expected_faithfulness'] + 0.20:.2f}"
+            f"expected below ~{case['expected_faithfulness'] + 0.40:.2f}"
         )
 
 

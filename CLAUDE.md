@@ -12,14 +12,14 @@ Production-grade RAG pipeline built in 3 phases across 8 waves. Python + FastAPI
 
 - **Wave 1 (Retrieval Quality Foundation):** Complete. Tag: `wave-1-complete`.
 - **Wave 2 (Input Safety & Query Intelligence):** Complete. Tag: `wave-2-complete`. Verification follow-up complete.
-- **Wave 3 (Output Quality & Tracing):** Complete. Tag: `wave-3-complete`. 155 tests passing (21 skipped — need OPENROUTER_API_KEY). Lint and typecheck clean (0 new errors).
+- **Wave 3 (Output Quality & Tracing):** Complete. Tag: `wave-3-complete`. 175 tests passing, 1 skipped (empty context edge case). Lint and typecheck clean (0 new errors).
 
 ### Wave 3 Deliverables
 
 | # | Deliverable | Status | Tests |
 |---|-------------|--------|-------|
 | 3.1 | HHEM Hallucination Detection | Real CPU inference, `vectara/hallucination_evaluation_model` | 7 tests, real model |
-| 3.2 | DeepEval Faithfulness CI | 20 golden dataset cases, CI wired | 21 tests (skipped without OPENROUTER_API_KEY) |
+| 3.2 | DeepEval Faithfulness CI | 20 golden dataset cases, CI wired | 20 pass, 1 skip (empty context) via OpenRouter |
 | 3.3 | Langfuse Tracing | Local JSON fallback matching tech spec Section 2.2 | 6 tests |
 | 3.4 | Output Schema Enforcement | Per-route JSON schema validation with jsonschema | 10 tests |
 | 3.5 | Structured Logging | structlog JSON, auto trace_id binding, 8 pipeline events | 4 tests |
@@ -124,7 +124,7 @@ tests/
 ## Running Tests
 
 ```bash
-# All unit + eval tests (155 tests, 21 skipped without OPENROUTER_API_KEY)
+# All unit + eval tests (175 pass, 1 skip — needs OPENROUTER_API_KEY + OPENAI_BASE_URL for DeepEval)
 python3 -m pytest tests/ --ignore=tests/integration -q
 
 # Integration tests (requires Docker services + API keys)
