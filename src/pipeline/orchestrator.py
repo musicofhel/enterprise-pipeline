@@ -7,11 +7,13 @@ from uuid import uuid4
 import structlog
 
 from src.models.schemas import QueryMetadata, QueryRequest, QueryResponse, SourceInfo
+from src.observability.instrumentation import PipelineInstrumentation
 from src.observability.logging import bind_trace_context, clear_trace_context
 
 if TYPE_CHECKING:
     from src.experimentation.feature_flags import FeatureFlagService
     from src.experimentation.shadow_mode import ShadowRunner
+    from src.observability.retrieval_canary import RetrievalQualityCanary
     from src.observability.tracing import TracingService
     from src.pipeline.chunking.chunker import DocumentChunker
     from src.pipeline.chunking.metadata_extractor import MetadataExtractor
@@ -49,6 +51,7 @@ class PipelineOrchestrator:
         query_expander: QueryExpander | None = None,
         feature_flags: FeatureFlagService | None = None,
         shadow_runner: ShadowRunner | None = None,
+        retrieval_canary: RetrievalQualityCanary | None = None,
     ) -> None:
         self._embedding = embedding_service
         self._vector_store = vector_store
@@ -66,6 +69,8 @@ class PipelineOrchestrator:
         self._query_expander = query_expander
         self._feature_flags = feature_flags
         self._shadow_runner = shadow_runner
+        self._retrieval_canary = retrieval_canary
+        self._instrumentation = PipelineInstrumentation()
 
     async def query(self, request: QueryRequest) -> QueryResponse:
         """Execute the full RAG pipeline for a query."""
@@ -78,6 +83,8 @@ class PipelineOrchestrator:
                 user_id=request.user_id,
                 tenant_id=request.tenant_id,
             )
+
+        self._instrumentation.record_variant_assignment(variant)
 
         trace = self._tracing.create_trace(
             name="pipeline_query",
@@ -106,6 +113,9 @@ class PipelineOrchestrator:
             )
 
             if not safety_result["passed"]:
+                self._instrumentation.record_safety_block(
+                    layer=safety_result.get("layer", "unknown")
+                )
                 clear_trace_context()
                 return QueryResponse(
                     answer=None,
@@ -255,6 +265,17 @@ class PipelineOrchestrator:
             # 5. Reranking
             reranked = await self._reranker.rerank(request.query, deduped)
             span.set_attribute("num_results_after_rerank", len(reranked))
+            span.set_attribute(
+                "result_scores",
+                [r.get("score", r.get("relevance_score", 0.0)) for r in reranked],
+            )
+
+        # Feed retrieval scores to canary
+        if self._retrieval_canary:
+            canary_scores = [
+                r.get("score", r.get("relevance_score", 0.0)) for r in reranked
+            ]
+            self._retrieval_canary.record_scores(canary_scores)
 
         logger.info("pipeline.retrieval.completed", num_results=len(reranked), latency_ms=int((time.monotonic() - start_time) * 1000))
 
@@ -327,6 +348,20 @@ class PipelineOrchestrator:
             latency_ms=hall_result.get("latency_ms"),
         )
 
+        # Instrumentation: hallucination + generation metrics
+        if hall_result.get("score") is not None:
+            self._instrumentation.record_hallucination(
+                score=float(hall_result["score"]),  # type: ignore[arg-type]
+                passed=bool(hall_result["passed"]),
+            )
+        self._instrumentation.record_generation(
+            model=llm_result.get("model", "unknown"),
+            route=route,
+            tokens_in=llm_result.get("tokens_in", 0),
+            tokens_out=llm_result.get("tokens_out", 0),
+            cost_usd=llm_result.get("cost_usd", 0.0),
+        )
+
         latency_ms = int((time.monotonic() - start_time) * 1000)
 
         # Build sources
@@ -362,6 +397,9 @@ class PipelineOrchestrator:
         hall_level = hall_result.get("level", "pass")
 
         if hall_level == "fail":
+            self._instrumentation.record_request(
+                route=route, variant=variant, duration_seconds=latency_ms / 1000,
+            )
             logger.info("pipeline.request.completed", total_latency_ms=latency_ms, fallback=True)
             clear_trace_context()
             return QueryResponse(
@@ -389,6 +427,9 @@ class PipelineOrchestrator:
                 "Please verify critical details against the source materials."
             )
 
+        self._instrumentation.record_request(
+            route=route, variant=variant, duration_seconds=latency_ms / 1000,
+        )
         logger.info("pipeline.request.completed", total_latency_ms=latency_ms, fallback=False)
         clear_trace_context()
 

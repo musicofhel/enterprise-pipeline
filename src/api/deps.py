@@ -13,6 +13,7 @@ from src.config.settings import Settings
 from src.experimentation.feature_flags import FeatureFlagService
 from src.experimentation.shadow_mode import ShadowRunner
 from src.observability.audit_log import AuditLogService
+from src.observability.retrieval_canary import RetrievalQualityCanary
 from src.observability.tracing import TracingService
 from src.pipeline.chunking.chunker import DocumentChunker
 from src.pipeline.chunking.metadata_extractor import MetadataExtractor
@@ -188,6 +189,9 @@ def get_orchestrator() -> PipelineOrchestrator:
     feature_flags = get_feature_flag_service()
     shadow_runner = get_shadow_runner(llm_client=llm_client)
 
+    # Observability
+    retrieval_canary = RetrievalQualityCanary()
+
     return PipelineOrchestrator(
         embedding_service=embedding_service,
         vector_store=vector_store,
@@ -214,4 +218,5 @@ def get_orchestrator() -> PipelineOrchestrator:
         query_expander=query_expander,
         feature_flags=feature_flags,
         shadow_runner=shadow_runner,
+        retrieval_canary=retrieval_canary,
     )

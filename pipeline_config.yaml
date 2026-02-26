@@ -58,6 +58,12 @@ observability:
   langfuse_sample_rate: 1.0
   export_to_s3: true
   export_schedule: daily
+  monitoring:
+    prometheus_enabled: true
+    embedding_drift_threshold: 0.15
+    retrieval_canary_window: 1000
+    daily_eval_sample_size: 50
+    daily_eval_lookback_hours: 24
 
 experimentation:
   shadow_mode:

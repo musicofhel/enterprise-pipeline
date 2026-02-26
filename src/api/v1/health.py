@@ -3,9 +3,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import Response
 
 from src.api.deps import get_orchestrator, get_tracing_service
 from src.models.schemas import HealthResponse, ReadyResponse
+from src.observability.metrics import get_metrics_text
 
 if TYPE_CHECKING:
     from src.pipeline.orchestrator import PipelineOrchestrator
@@ -16,6 +18,12 @@ router = APIRouter()
 @router.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
     return HealthResponse(status="ok")
+
+
+@router.get("/metrics")
+async def metrics() -> Response:
+    """Prometheus metrics endpoint."""
+    return Response(content=get_metrics_text(), media_type="text/plain; charset=utf-8")
 
 
 @router.get("/ready", response_model=ReadyResponse)

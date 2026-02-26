@@ -72,11 +72,20 @@ class HallucinationConfig(BaseModel):
     aggregation_method: str = "max"  # "max", "mean", or "min"
 
 
+class MonitoringConfig(BaseModel):
+    prometheus_enabled: bool = True
+    embedding_drift_threshold: float = 0.15
+    retrieval_canary_window: int = 1000
+    daily_eval_sample_size: int = 50
+    daily_eval_lookback_hours: int = 24
+
+
 class ObservabilityConfig(BaseModel):
     langfuse_enabled: bool = True
     langfuse_sample_rate: float = 1.0
     export_to_s3: bool = True
     export_schedule: str = "daily"
+    monitoring: MonitoringConfig = Field(default_factory=MonitoringConfig)
 
 
 class ShadowModeConfig(BaseModel):

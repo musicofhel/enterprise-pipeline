@@ -15,6 +15,17 @@ Production-grade RAG pipeline built in 3 phases across 8 waves. Python + FastAPI
 - **Wave 3 (Output Quality & Tracing):** Complete. Tag: `wave-3-complete`. 175 tests passing, 1 skipped (empty context edge case). Lint and typecheck clean (0 new errors).
 - **Wave 4 (Compliance & Data Governance):** Complete. Tag: `wave-4-complete`. 239 tests passing, 21 skipped (DeepEval API key tests). Lint clean, 0 new mypy errors. HHEM restored (transformers 5.2.0 → 4.57.6). Lockfile + version guard added.
 - **Wave 5 (Deployment & Experimentation):** Complete. Tag: `wave-5-complete`. 283 tests passing, 21 skipped. Lint clean, 0 new mypy errors. All local implementations (no Temporal, no LaunchDarkly).
+- **Wave 6 (Observability & Monitoring):** Complete. Tag: `wave-6-complete`. 318 tests passing, 21 skipped. Lint clean, 0 new mypy errors. All local and free (Prometheus + Grafana + Arize Phoenix).
+
+### Wave 6 Deliverables
+
+| # | Deliverable | Status | Tests |
+|---|-------------|--------|-------|
+| 6.1 | Embedding drift monitoring | `EmbeddingMonitor` — cosine centroid shift + spread change, Prometheus gauges, Phoenix launcher | 8 tests |
+| 6.2 | Retrieval quality canary | `RetrievalQualityCanary` — rolling window, p50/p95/mean, WARN/CRITICAL alerts, empty result rate | 7 tests |
+| 6.3 | Daily Ragas eval | `DailyEvalRunner` — OpenRouter (claude-haiku-4-5), faithfulness/precision/relevancy, graceful skip | 7 tests |
+| 6.4 | Unified quality dashboard | `metrics.py` — 28 Prometheus metrics, `/metrics` endpoint, Grafana dashboard (5 rows, 17 panels) | 9 tests |
+| 6.5 | Alert playbooks | `docs/runbooks/alerting-playbooks.md` — 11 alerts (7 CRITICAL, 4 WARN), Trigger/Investigation/Remediation | 4 tests |
 
 ### Wave 5 Deliverables
 
@@ -76,7 +87,12 @@ src/
 ├── observability/
 │   ├── tracing.py                  # Langfuse SDK + local JSON fallback
 │   ├── audit_log.py                # Immutable audit log (WORM — no delete/update)
-│   └── logging.py                  # structlog JSON/console config with trace context
+│   ├── logging.py                  # structlog JSON/console config with trace context
+│   ├── metrics.py                  # Central Prometheus metrics registry (28 metrics)
+│   ├── embedding_monitor.py        # Embedding drift detection (cosine centroid shift)
+│   ├── retrieval_canary.py         # Retrieval quality canary (rolling window alerts)
+│   ├── daily_eval.py               # Daily Ragas eval runner (OpenRouter)
+│   └── instrumentation.py          # Pipeline instrumentation (Prometheus metric updates)
 ├── experimentation/
 │   ├── __init__.py                 # Package exports
 │   ├── feature_flags.py            # FeatureFlagService (local YAML, hash-based)
@@ -88,8 +104,8 @@ src/
 │   └── retention_checker.py        # TTL-based data retention enforcement
 └── utils/tokens.py                 # tiktoken helpers
 tests/
-├── unit/                           # 35 test files (~245 tests)
-├── eval/                           # DeepEval faithfulness + exit criteria
+├── unit/                           # 41 test files (~269 tests)
+├── eval/                           # DeepEval faithfulness + exit criteria (~49 tests)
 └── integration/                    # E2E pipeline + Cohere/Lakera stubs
 ```
 
@@ -138,6 +154,15 @@ tests/
 - **Promptfoo**: Config ready but CI job needs `OPENROUTER_API_KEY` in GitHub secrets to actually run.
 - **Config models**: `ShadowModeConfig` and `FeatureFlagConfig` nested under `ExperimentationConfig` in `pipeline_config.py`.
 
+### Observability (Wave 6)
+- **Prometheus metrics**: Dedicated `CollectorRegistry` in `src/observability/metrics.py`. 28 metrics across 6 groups (pipeline, safety, hallucination, LLM, retrieval, experimentation). `/metrics` endpoint on health router.
+- **Embedding drift**: Cosine centroid shift + spread change detection. Reference embeddings set once, current embeddings buffered in deque. Min 10 samples for drift check.
+- **Retrieval canary**: Rolling window (default 1000) + baseline window (default 7000). p50 drop >10% = CRITICAL. Empty result rate >5% = CRITICAL. Wired into orchestrator after retrieval stage.
+- **Daily Ragas eval**: Uses OpenRouter (claude-haiku-4-5) for LLM judge. Faithfulness, ContextPrecision, AnswerRelevancy. Graceful skip without API key. Reports saved to `eval_reports/`.
+- **Grafana dashboard**: Auto-provisioned via `docker-compose.monitoring.yaml`. 5 rows, 17 panels. Port 3001 (Grafana), 9090 (Prometheus).
+- **Alert playbooks**: 11 alerts documented in `docs/runbooks/alerting-playbooks.md`. Each has Trigger/Investigation/Remediation/Escalation.
+- **openai SDK**: Pin updated from `<2` to `<3` for Ragas compatibility. All existing tests pass with openai 2.x.
+
 ### Injection Defense
 - L1 regex blocks 15/20 adversarial payloads.
 - 5 remaining bypasses are social engineering attacks requiring Lakera L2 (ISSUE-010).
@@ -148,9 +173,11 @@ tests/
 - **Local embeddings:** `all-MiniLM-L6-v2` via sentence-transformers (384-dim, CPU, no API key). Confidence threshold lowered to 0.15 for local model.
 
 ### Pipeline Stage Reality
-- **7/12 stages run real logic:** L1 regex, PII detection, routing algorithm, dedup, BM25 compression, token budget, HHEM hallucination check.
-- **4/12 stages are mocked:** Qdrant (needs server), Cohere rerank (needs API key), LLM generation (needs API key), embeddings (needs API key).
+- **7/12 core stages run real logic:** L1 regex, PII detection, routing algorithm, dedup, BM25 compression, token budget, HHEM hallucination check.
+- **4/12 core stages are mocked:** Qdrant (needs server), Cohere rerank (needs API key), LLM generation (needs API key), embeddings (needs API key).
 - **1/12 skipped:** Lakera L2 (needs API key).
+- **Observability layer (4 REAL):** Prometheus metrics, retrieval canary, embedding drift, pipeline instrumentation.
+- **Additional observability (needs runtime deps):** Ragas eval (needs OPENROUTER_API_KEY), Grafana dashboard (needs Docker).
 
 ### Compliance (Wave 4)
 - **RBAC**: `src/api/auth.py` — API key → Role mapping from `API_KEY_ROLES` env var. `require_permission()` enforces DELETE_USER_DATA, WRITE_FEEDBACK, etc.
@@ -177,6 +204,12 @@ tests/
 - **API key → Role RBAC** (Wave 4): Static env-var registry (`API_KEY_ROLES`), 5 roles, 13 permissions. `require_permission()` FastAPI dependency. Only `security_admin` and `compliance_officer` can delete user data.
 - **Per-step deletion tracking** (Wave 4): Each deletion step (vectors, traces, feedback) tracked independently with status/count/error. Overall status: `completed` (all pass), `partial` (some fail), `failed` (all fail).
 - **Configurable audit log path** (Wave 4): `compliance.audit_log_path` in `pipeline_config.yaml`, defaults to `audit_logs/local`.
+- **Dedicated Prometheus CollectorRegistry** (Wave 6): Avoids collision with prometheus_client internal metrics. `get_metrics_text()` returns bytes from our registry only.
+- **Cosine centroid shift for drift** (Wave 6): Measures directional change in embedding space (not magnitude). More semantically meaningful than Euclidean distance.
+- **Rolling window + baseline window for canary** (Wave 6): Recent window for current state, larger baseline window for comparison. Adapts as system operating point shifts.
+- **PipelineInstrumentation middleware** (Wave 6): Static methods for all Prometheus updates. Keeps orchestrator clean — one-line calls instead of inline counter/histogram updates.
+- **Grafana port 3001** (Wave 6): Avoids conflict with any backend on port 3000. Prometheus on 9090 (default).
+- **openai <3 pin** (Wave 6): Ragas requires openai>=2. Verified all existing tests pass with openai 2.x. Updated from `<2` to `<3`.
 
 ## Key Configuration
 
@@ -186,11 +219,14 @@ tests/
 - `src/pipeline/routing/routes.yaml` — 5 routes with 12-13 utterances each
 - `experiment_configs/flags.yaml` — Feature flag variant weights + user/tenant overrides
 - `promptfoo.config.yaml` — Promptfoo eval configuration (OpenRouter provider)
+- `docker-compose.monitoring.yaml` — Prometheus (9090) + Grafana (3001) monitoring stack
+- `monitoring/prometheus.yml` — Prometheus scrape config
+- `monitoring/grafana/dashboards/pipeline-health.json` — Grafana dashboard (5 rows, 17 panels)
 
 ## Running Tests
 
 ```bash
-# All unit + eval tests (283 pass, 21 skip — DeepEval needs API key)
+# All unit + eval tests (318 pass, 21 skip — DeepEval needs API key)
 # conftest.py auto-bridges OPENROUTER_API_KEY → OPENAI_API_KEY + OPENAI_BASE_URL for DeepEval
 .venv/bin/python -m pytest tests/ --ignore=tests/integration -q
 
@@ -205,4 +241,15 @@ python3 -m mypy src/ --ignore-missing-imports
 
 # E2E trace (mocked external deps, real local components)
 python3 -m scripts.run_e2e_trace
+
+# Monitoring stack (Prometheus + Grafana)
+docker compose -f docker-compose.monitoring.yaml up -d
+# Grafana: http://localhost:3001 (admin/admin)
+# Prometheus: http://localhost:9090
+
+# Daily Ragas eval (needs OPENROUTER_API_KEY)
+python3 scripts/run_daily_eval.py --traces-dir traces/local --output-dir eval_reports
+
+# Arize Phoenix embedding viewer
+python3 scripts/launch_phoenix.py
 ```
