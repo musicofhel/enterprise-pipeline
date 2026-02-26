@@ -48,7 +48,14 @@ class VectorStore:
         text_content: str,
         metadata: dict[str, Any],
     ) -> None:
-        """Upsert a single vector with metadata."""
+        """Upsert a single vector with metadata.
+
+        Validates that metadata contains required compliance fields
+        (user_id, doc_id, tenant_id) before persisting.
+        """
+        from src.pipeline.retrieval.metadata_validator import validate_vector_metadata
+
+        validate_vector_metadata(metadata, str(vector_id))
         point = PointStruct(
             id=str(vector_id),
             vector=embedding,
@@ -60,7 +67,15 @@ class VectorStore:
         self,
         points: list[dict[str, Any]],
     ) -> None:
-        """Upsert a batch of vectors."""
+        """Upsert a batch of vectors.
+
+        Validates metadata on every point before persisting.
+        """
+        from src.pipeline.retrieval.metadata_validator import validate_vector_metadata
+
+        for p in points:
+            validate_vector_metadata(p["metadata"], str(p["vector_id"]))
+
         qdrant_points = [
             PointStruct(
                 id=str(p["vector_id"]),
@@ -110,16 +125,28 @@ class VectorStore:
             for point in results.points
         ]
 
+    async def count_by_user(self, user_id: str) -> int:
+        """Count vectors belonging to a user."""
+        result = await self._client.count(
+            collection_name=COLLECTION_NAME,
+            count_filter=Filter(
+                must=[FieldCondition(key="user_id", match=MatchValue(value=user_id))]
+            ),
+            exact=True,
+        )
+        return result.count
+
     async def delete_by_user(self, user_id: str) -> int:
-        """Delete all vectors for a user. Returns estimated count deleted."""
+        """Delete all vectors for a user. Returns count of deleted vectors."""
+        count = await self.count_by_user(user_id)
         await self._client.delete(
             collection_name=COLLECTION_NAME,
             points_selector=Filter(
                 must=[FieldCondition(key="user_id", match=MatchValue(value=user_id))]
             ),
         )
-        logger.info("vectors_deleted_by_user", user_id=user_id)
-        return 0  # Qdrant doesn't return count on delete
+        logger.info("vectors_deleted_by_user", user_id=user_id, count=count)
+        return count
 
     async def is_healthy(self) -> bool:
         """Check if Qdrant is reachable."""

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from enum import StrEnum
+
 from pydantic import BaseModel, Field
 
 
@@ -84,3 +86,46 @@ class ErrorResponse(BaseModel):
     error: str
     reason: str | None = None
     trace_id: str | None = None
+
+
+# --- Wave 4: Deletion Schemas ---
+
+
+class DeletionStatus(StrEnum):
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    PARTIAL = "partial"
+    FAILED = "failed"
+
+
+class DeletionStepStatus(BaseModel):
+    status: str  # "success" | "failed" | "skipped"
+    count: int = 0
+    error: str | None = None
+    reason: str | None = None
+
+
+class DeletionRequest(BaseModel):
+    reason: str = Field(..., min_length=1, max_length=1000)
+    tenant_id: str = Field(..., min_length=1)
+
+
+class DeletionResponse(BaseModel):
+    deletion_id: str
+    status: DeletionStatus = DeletionStatus.PROCESSING
+    user_id: str
+
+
+class DeletionSummary(BaseModel):
+    vectors_deleted: int = 0
+    traces_redacted: int = 0
+    feedback_deleted: int = 0
+    steps: dict[str, DeletionStepStatus] = Field(default_factory=dict)
+
+
+class DeletionStatusResponse(BaseModel):
+    deletion_id: str
+    status: DeletionStatus
+    user_id: str
+    summary: DeletionSummary | None = None
+    completed_at: str | None = None

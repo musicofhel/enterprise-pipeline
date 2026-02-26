@@ -63,3 +63,13 @@ experimentation:
   shadow_mode_enabled: false
   shadow_pipeline_version: null
   feature_flag_provider: launchdarkly
+
+compliance:
+  deletion_sla_hours: 72
+  audit_log_immutable: true
+  audit_log_path: audit_logs/local
+  retention:
+    vectors_days: 365
+    traces_days: 90
+    audit_logs_days: 2555
+    feedback_days: 365

@@ -1,15 +1,35 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from typing import TYPE_CHECKING
 
+from fastapi import APIRouter, Depends
+
+from src.api.auth import require_permission
+from src.api.deps import get_feedback_service
+from src.models.rbac import Permission
 from src.models.schemas import FeedbackRequest, FeedbackResponse
+
+if TYPE_CHECKING:
+    from src.services.feedback_service import FeedbackService
 
 router = APIRouter()
 
 
-@router.post("/feedback", response_model=FeedbackResponse)
-async def feedback(request: FeedbackRequest) -> FeedbackResponse:
-    raise HTTPException(
-        status_code=501,
-        detail="Feedback collection not yet implemented. Coming in Wave 3.",
+@router.post(
+    "/feedback",
+    response_model=FeedbackResponse,
+    dependencies=[Depends(require_permission(Permission.WRITE_FEEDBACK))],
+)
+async def feedback(
+    request: FeedbackRequest,
+    feedback_service: FeedbackService = Depends(get_feedback_service),
+) -> FeedbackResponse:
+    """Record user feedback for a trace."""
+    feedback_id = feedback_service.record_feedback(
+        trace_id=request.trace_id,
+        user_id=request.user_id,
+        rating=request.rating,
+        correction=request.correction,
+        comment=request.comment,
     )
+    return FeedbackResponse(feedback_id=feedback_id, status="recorded")

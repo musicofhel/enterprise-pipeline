@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 
 import cohere
 from langfuse import Langfuse
@@ -9,6 +10,7 @@ from qdrant_client import AsyncQdrantClient
 
 from src.config.pipeline_config import PipelineConfig, load_pipeline_config
 from src.config.settings import Settings
+from src.observability.audit_log import AuditLogService
 from src.observability.tracing import TracingService
 from src.pipeline.chunking.chunker import DocumentChunker
 from src.pipeline.chunking.metadata_extractor import MetadataExtractor
@@ -28,6 +30,8 @@ from src.pipeline.safety import SafetyChecker
 from src.pipeline.safety.injection_detector import InjectionDetector
 from src.pipeline.safety.lakera_guard import LakeraGuardClient
 from src.pipeline.safety.pii_detector import PIIDetector
+from src.services.deletion_service import DeletionService
+from src.services.feedback_service import FeedbackService
 
 
 @lru_cache
@@ -54,6 +58,37 @@ def get_tracing_service() -> TracingService:
         host=settings.langfuse_host,
     )
     return TracingService(client=client, local_fallback=True)
+
+
+def get_audit_log_service() -> AuditLogService:
+    config = get_pipeline_config()
+    storage_dir = Path(config.compliance.audit_log_path)
+    return AuditLogService(storage_dir=storage_dir)
+
+
+def get_feedback_service() -> FeedbackService:
+    audit_log = get_audit_log_service()
+    return FeedbackService(audit_log=audit_log)
+
+
+def get_deletion_service() -> DeletionService:
+    settings = get_settings()
+
+    qdrant_client = AsyncQdrantClient(
+        host=settings.qdrant_host,
+        port=settings.qdrant_port,
+        api_key=settings.qdrant_api_key.get_secret_value() or None,
+    )
+    vector_store = VectorStore(client=qdrant_client)
+    audit_log = get_audit_log_service()
+    tracing = get_tracing_service()
+    feedback_service = get_feedback_service()
+    return DeletionService(
+        vector_store=vector_store,
+        audit_log=audit_log,
+        tracing=tracing,
+        feedback_service=feedback_service,
+    )
 
 
 def get_orchestrator() -> PipelineOrchestrator:

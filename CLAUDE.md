@@ -13,6 +13,19 @@ Production-grade RAG pipeline built in 3 phases across 8 waves. Python + FastAPI
 - **Wave 1 (Retrieval Quality Foundation):** Complete. Tag: `wave-1-complete`.
 - **Wave 2 (Input Safety & Query Intelligence):** Complete. Tag: `wave-2-complete`. Verification follow-up complete.
 - **Wave 3 (Output Quality & Tracing):** Complete. Tag: `wave-3-complete`. 175 tests passing, 1 skipped (empty context edge case). Lint and typecheck clean (0 new errors).
+- **Wave 4 (Compliance & Data Governance):** Complete. 231 tests passing, 21 skipped (DeepEval API key tests). Lint clean, 0 new mypy errors.
+
+### Wave 4 Deliverables
+
+| # | Deliverable | Status | Tests |
+|---|-------------|--------|-------|
+| 4.1 | Metadata schema enforcement | `validate_vector_metadata()` at upsert — rejects missing user_id/doc_id/tenant_id | 6 tests |
+| 4.2 | Right-to-deletion API | Full DELETE + GET endpoints with per-step tracking (vectors/traces/feedback) | 14 tests |
+| 4.3 | Immutable audit log | AuditLogService with local JSON WORM — no delete/update methods | 8+4 tests |
+| 4.4 | Trace export | Local traces exportable with schema validation | 2 tests |
+| 4.5 | Data retention | RetentionChecker with configurable TTLs + purge | 6 tests |
+| 4.6 | RBAC + Auth | 5 roles, 13 permissions, API key auth, `require_permission()` dependency | 7+8 tests |
+| 4.7 | Feedback API | FeedbackService with audit trail, feedback deletion for right-to-erasure | 5 tests |
 
 ### Wave 3 Deliverables
 
@@ -30,13 +43,20 @@ Production-grade RAG pipeline built in 3 phases across 8 waves. Python + FastAPI
 src/
 ├── main.py                         # FastAPI app factory
 ├── config/                         # Pydantic settings + YAML config loader
-├── models/schemas.py               # API request/response models
-├── api/                            # FastAPI routes + DI wiring (deps.py)
+├── models/
+│   ├── schemas.py                  # API request/response models
+│   ├── audit.py                    # AuditEvent, AuditActor, AuditResource models
+│   ├── rbac.py                     # Role, Permission, ROLE_PERMISSIONS, PermissionChecker
+│   └── metadata.py                 # ChunkMetadata, DocType
+├── api/
+│   ├── auth.py                     # API key → Role auth + require_permission() dependency
+│   ├── deps.py                     # DI wiring for all services
+│   └── v1/                         # FastAPI routes (query, ingest, deletion, feedback)
 ├── pipeline/
 │   ├── orchestrator.py             # Central pipeline coordinator (12 stages)
 │   ├── safety/                     # L1 regex injection + PII detection
 │   ├── routing/                    # Semantic query router (cosine sim + YAML routes)
-│   ├── retrieval/                  # Qdrant client, embeddings, query expander, local embeddings, RRF
+│   ├── retrieval/                  # Qdrant client, embeddings, query expander, metadata_validator
 │   ├── reranking/                  # Cohere reranker
 │   ├── compression/                # BM25 sub-scoring + token budget
 │   ├── generation/                 # LLM client (OpenRouter — OpenAI-compatible API)
@@ -44,10 +64,15 @@ src/
 │   └── output_schema.py            # Per-route JSON schema enforcement
 ├── observability/
 │   ├── tracing.py                  # Langfuse SDK + local JSON fallback
+│   ├── audit_log.py                # Immutable audit log (WORM — no delete/update)
 │   └── logging.py                  # structlog JSON/console config with trace context
+├── services/
+│   ├── deletion_service.py         # Right-to-deletion orchestrator (vectors + traces + feedback)
+│   ├── feedback_service.py         # Feedback storage with audit trail
+│   └── retention_checker.py        # TTL-based data retention enforcement
 └── utils/tokens.py                 # tiktoken helpers
 tests/
-├── unit/                           # 22 test files (155 tests)
+├── unit/                           # 30 test files (~210 tests)
 ├── eval/                           # DeepEval faithfulness + exit criteria
 └── integration/                    # E2E pipeline + Cohere/Lakera stubs
 ```
@@ -104,6 +129,14 @@ tests/
 - **4/12 stages are mocked:** Qdrant (needs server), Cohere rerank (needs API key), LLM generation (needs API key), embeddings (needs API key).
 - **1/12 skipped:** Lakera L2 (needs API key).
 
+### Compliance (Wave 4)
+- **RBAC**: `src/api/auth.py` — API key → Role mapping from `API_KEY_ROLES` env var. `require_permission()` enforces DELETE_USER_DATA, WRITE_FEEDBACK, etc.
+- **Deletion**: `src/services/deletion_service.py` — orchestrates vector deletion (Qdrant), trace redaction (local JSON), feedback deletion. Per-step tracking with `DeletionStepResult`. Trace redaction runs in `asyncio.to_thread()` to avoid blocking.
+- **Audit**: `src/observability/audit_log.py` — WORM (no delete/update). Path configurable via `compliance.audit_log_path`. Every deletion request creates an audit event with tenant_id.
+- **Metadata**: `src/pipeline/retrieval/metadata_validator.py` — blocks upsert if user_id, doc_id, or tenant_id missing/empty.
+- **Retention**: `src/services/retention_checker.py` — finds and purges expired traces/feedback based on TTL config.
+- **Qdrant**: Running in Docker on port 6333. `VectorStore.delete_by_user()` counts vectors before deletion, returns actual count.
+
 ## Decisions Made
 
 - **Qdrant over pgvector** (Wave 1): Async client, filter DSL, good ergonomics.
@@ -114,19 +147,23 @@ tests/
 - **Post-hoc schema enforcement over constrained decoding** (Wave 3): jsonschema validation is simpler, more testable, and independent of the LLM provider.
 - **OpenRouter over direct OpenAI** (post-Wave 3): Single LLM gateway for all models. `AsyncOpenAI` SDK with `base_url="https://openrouter.ai/api/v1"`. Default model: `anthropic/claude-sonnet-4-5`, fallback: `anthropic/claude-haiku-4-5`. Query expansion uses cheaper `anthropic/claude-haiku-4-5`.
 - **Local sentence-transformers for routing** (post-Wave 3): `all-MiniLM-L6-v2` (384-dim, ~80MB, CPU). No API key needed. Confidence threshold adjusted from 0.7 to 0.15 for local model's lower average similarities.
+- **API key → Role RBAC** (Wave 4): Static env-var registry (`API_KEY_ROLES`), 5 roles, 13 permissions. `require_permission()` FastAPI dependency. Only `security_admin` and `compliance_officer` can delete user data.
+- **Per-step deletion tracking** (Wave 4): Each deletion step (vectors, traces, feedback) tracked independently with status/count/error. Overall status: `completed` (all pass), `partial` (some fail), `failed` (all fail).
+- **Configurable audit log path** (Wave 4): `compliance.audit_log_path` in `pipeline_config.yaml`, defaults to `audit_logs/local`.
 
 ## Key Configuration
 
-- `pipeline_config.yaml` — master config (safety, routing, query expansion, hallucination, etc.)
+- `pipeline_config.yaml` — master config (safety, routing, query expansion, hallucination, compliance, etc.)
 - `.env.example` — required API keys: OPENROUTER_API_KEY, COHERE_API_KEY, LAKERA_API_KEY
+- `API_KEY_ROLES` env var — semicolon-separated `key=role` pairs for RBAC (e.g. `sk-admin=security_admin;sk-worker=pipeline_worker`)
 - `src/pipeline/routing/routes.yaml` — 5 routes with 12-13 utterances each
 
 ## Running Tests
 
 ```bash
-# All unit + eval tests (175 pass, 1 skip)
+# All unit + eval tests (231 pass, 21 skip — DeepEval needs API key, HHEM has model load issue)
 # conftest.py auto-bridges OPENROUTER_API_KEY → OPENAI_API_KEY + OPENAI_BASE_URL for DeepEval
-python3 -m pytest tests/ --ignore=tests/integration -q
+.venv/bin/python -m pytest tests/ --ignore=tests/integration -q
 
 # Integration tests (requires Docker services + API keys)
 python3 -m pytest tests/integration -m integration

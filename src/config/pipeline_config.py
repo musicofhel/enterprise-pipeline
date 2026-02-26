@@ -85,6 +85,20 @@ class ExperimentationConfig(BaseModel):
     feature_flag_provider: str = "launchdarkly"
 
 
+class RetentionConfig(BaseModel):
+    vectors_days: int = 365
+    traces_days: int = 90
+    audit_logs_days: int = 2555  # ~7 years
+    feedback_days: int = 365
+
+
+class ComplianceConfig(BaseModel):
+    deletion_sla_hours: int = 72
+    retention: RetentionConfig = Field(default_factory=RetentionConfig)
+    audit_log_immutable: bool = True
+    audit_log_path: str = "audit_logs/local"
+
+
 class PipelineConfig(BaseModel):
     model_config = {"frozen": True}
 
@@ -99,6 +113,7 @@ class PipelineConfig(BaseModel):
     hallucination: HallucinationConfig = Field(default_factory=HallucinationConfig)
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
     experimentation: ExperimentationConfig = Field(default_factory=ExperimentationConfig)
+    compliance: ComplianceConfig = Field(default_factory=ComplianceConfig)
 
 
 def load_pipeline_config(

@@ -158,3 +158,33 @@ def sample_query_request() -> dict[str, Any]:
         "tenant_id": "test-tenant",
         "session_id": "test-session",
     }
+
+
+@pytest.fixture
+def mock_audit_log_service() -> MagicMock:
+    from src.observability.audit_log import AuditLogService
+
+    service = MagicMock(spec=AuditLogService)
+    service.log_event.return_value = "test-event-id"
+    service.list_events.return_value = []
+    return service
+
+
+@pytest.fixture
+def mock_deletion_service() -> AsyncMock:
+    from src.services.deletion_service import DeletionReceipt, DeletionService
+
+    service = AsyncMock(spec=DeletionService)
+    receipt = DeletionReceipt(
+        deletion_id="del-123",
+        user_id="test-user",
+        tenant_id="test-tenant",
+        reason="test",
+    )
+    receipt.status = "completed"
+    receipt.vectors_deleted = 5
+    receipt.traces_redacted = 2
+    service.delete_user_data.return_value = receipt
+    service.get_deletion_status.return_value = receipt
+    service.verify_deletion.return_value = True
+    return service
