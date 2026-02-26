@@ -295,7 +295,7 @@ Without closing these gaps, the pipeline cannot serve regulated industries, will
 | 3 | Budget for Lakera Guard API at production volume? | Finance | Partially Resolved (Wave 2) — L1 regex handles known patterns at $0. Lakera is additive at ~$0.001/query (~$1K/month at 1M queries). Recommend production trial. |
 | 4 | Which LLM provider(s) for generation layer? | ML Eng | Resolved (post-Wave 3) — OpenRouter as unified LLM gateway (OpenAI-compatible API). Default: `anthropic/claude-sonnet-4-5`, fallback: `anthropic/claude-haiku-4-5`. Single API key: `OPENROUTER_API_KEY`. |
 | 5 | Latency budget allocation per pipeline layer? | Platform Eng | Resolved (Wave 2) — Safety <50ms, Routing <100ms, Expansion <2000ms (optional), Retrieval+Rerank <500ms, Generation <2000ms. Total p95 target: <3s (NFR-01). |
-| 6 | Annotation staffing for data flywheel? | Product | Open |
+| 6 | Annotation staffing for data flywheel? | Product | Partially Resolved (Wave 7) — File-based annotation pipeline built (`scripts/annotate.py` CLI). Single annotator can triage+annotate 10 failures/week via CLI. For team workflows, plug in Argilla or build a web UI. Staffing decision deferred until production failure volume is known. |
 
 ---
 
