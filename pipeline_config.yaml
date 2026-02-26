@@ -22,13 +22,15 @@ routing:
   embedding_model: all-MiniLM-L6-v2
   embedding_provider: local
   default_route: rag_knowledge_base
-  confidence_threshold: 0.15
+  confidence_threshold: 0.5
 
 query_expansion:
   enabled: true
   method: multi_query
   num_queries: 3
   model: anthropic/claude-haiku-4-5
+  mode: conditional
+  confidence_threshold: 0.75
 
 safety:
   injection_detection:
@@ -45,6 +47,19 @@ generation:
   temperature: 0.1
   max_output_tokens: 1000
   fallback_model: anthropic/claude-haiku-4-5
+  model_routing:
+    enabled: true
+    tiers:
+      fast:
+        model: anthropic/claude-haiku-4-5
+        max_output_tokens: 512
+      standard:
+        model: anthropic/claude-sonnet-4-5
+        max_output_tokens: 1024
+      complex:
+        model: anthropic/claude-sonnet-4-5
+        max_output_tokens: 2048
+    force_model: null
 
 hallucination:
   model: vectara/hallucination_evaluation_model

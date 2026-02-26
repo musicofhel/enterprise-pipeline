@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import time
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
@@ -11,6 +12,7 @@ from src.observability.instrumentation import PipelineInstrumentation
 from src.observability.logging import bind_trace_context, clear_trace_context
 
 if TYPE_CHECKING:
+    from src.config.pipeline_config import ModelRoutingConfig, QueryExpansionConfig
     from src.experimentation.feature_flags import FeatureFlagService
     from src.experimentation.shadow_mode import ShadowRunner
     from src.observability.retrieval_canary import RetrievalQualityCanary
@@ -52,6 +54,8 @@ class PipelineOrchestrator:
         feature_flags: FeatureFlagService | None = None,
         shadow_runner: ShadowRunner | None = None,
         retrieval_canary: RetrievalQualityCanary | None = None,
+        expansion_config: QueryExpansionConfig | None = None,
+        model_routing_config: ModelRoutingConfig | None = None,
     ) -> None:
         self._embedding = embedding_service
         self._vector_store = vector_store
@@ -70,7 +74,35 @@ class PipelineOrchestrator:
         self._feature_flags = feature_flags
         self._shadow_runner = shadow_runner
         self._retrieval_canary = retrieval_canary
+        self._expansion_config = expansion_config
+        self._model_routing_config = model_routing_config
         self._instrumentation = PipelineInstrumentation()
+
+    def _should_expand(self, route_result: dict[str, Any]) -> bool:
+        """Decide whether to run query expansion based on config and routing confidence."""
+        if not self._query_expander:
+            return False
+
+        if not self._expansion_config:
+            return True  # No config — always expand if expander is present
+
+        mode = self._expansion_config.mode
+        if mode == "never":
+            return False
+        if mode == "always":
+            return True
+
+        # mode == "conditional": skip expansion when routing confidence is high
+        confidence = route_result.get("confidence", 0.0)
+        threshold = self._expansion_config.confidence_threshold
+        if confidence >= threshold:
+            logger.info(
+                "expansion_skipped_high_confidence",
+                confidence=confidence,
+                threshold=threshold,
+            )
+            return False
+        return True
 
     async def query(self, request: QueryRequest) -> QueryResponse:
         """Execute the full RAG pipeline for a query."""
@@ -187,9 +219,18 @@ class PipelineOrchestrator:
                 span.set_attribute("tokens_after", 0)
                 budgeted = []
 
+            # Resolve model tier for cost optimization
+            gen_model_override = None
+            gen_max_tokens_override = None
+            if self._model_routing_config:
+                from src.pipeline.generation.model_router import resolve_model
+                mr = resolve_model(self._model_routing_config, request.query, route, context_tokens=0)
+                gen_model_override = mr["model"]
+                gen_max_tokens_override = mr["max_output_tokens"]
+
             with trace.generation(
                 name="generation",
-                model=self._llm._model,
+                model=gen_model_override or self._llm._model,
                 input=request.query,
             ) as gen:
                 llm_result = await self._llm.generate(
@@ -197,6 +238,8 @@ class PipelineOrchestrator:
                     context_chunks=[],
                     temperature=request.options.temperature,
                     max_tokens=request.options.max_tokens,
+                    model_override=gen_model_override,
+                    max_tokens_override=gen_max_tokens_override,
                 )
                 gen.set_output(
                     llm_result["answer"],
@@ -231,24 +274,31 @@ class PipelineOrchestrator:
 
         # 4. Retrieval (with optional multi-query expansion)
         with trace.span("retrieval") as span:
-            if self._query_expander:
+            should_expand = self._should_expand(route_result)
+            span.set_attribute("expansion_enabled", should_expand)
+
+            if should_expand and self._query_expander:
                 from src.pipeline.retrieval.reciprocal_rank_fusion import reciprocal_rank_fusion
 
                 queries = await self._query_expander.expand(request.query)
                 span.set_attribute("expanded_queries", len(queries))
 
-                all_result_lists: list[list[dict[str, Any]]] = []
-                for q in queries:
+                # Concurrent retrieval for all expanded queries
+                async def _search_query(q: str) -> list[dict[str, Any]]:
                     q_embedding = await self._embedding.embed_query(q)
-                    q_results = await self._vector_store.search(
+                    return await self._vector_store.search(
                         query_embedding=q_embedding,
                         top_k=20,
                         tenant_id=request.tenant_id,
                     )
-                    all_result_lists.append(q_results)
+
+                all_result_lists: list[list[dict[str, Any]]] = list(
+                    await asyncio.gather(*[_search_query(q) for q in queries])
+                )
 
                 raw_results = reciprocal_rank_fusion(all_result_lists)
             else:
+                span.set_attribute("expanded_queries", 1)
                 query_embedding = await self._embedding.embed_query(request.query)
                 raw_results = await self._vector_store.search(
                     query_embedding=query_embedding,
@@ -302,10 +352,19 @@ class PipelineOrchestrator:
             ratio=round(tokens_after / max(tokens_before, 1), 2),
         )
 
-        # 7. Generation
+        # 7. Generation (with smart model routing)
+        gen_model_override = None
+        gen_max_tokens_override = None
+        if self._model_routing_config:
+            from src.pipeline.generation.model_router import resolve_model
+            context_tokens = tokens_after  # from compression step
+            mr = resolve_model(self._model_routing_config, request.query, route, context_tokens)
+            gen_model_override = mr["model"]
+            gen_max_tokens_override = mr["max_output_tokens"]
+
         with trace.generation(
             name="generation",
-            model=self._llm._model,
+            model=gen_model_override or self._llm._model,
             input=request.query,
         ) as gen:
             llm_result = await self._llm.generate(
@@ -313,6 +372,8 @@ class PipelineOrchestrator:
                 context_chunks=budgeted,
                 temperature=request.options.temperature,
                 max_tokens=request.options.max_tokens,
+                model_override=gen_model_override,
+                max_tokens_override=gen_max_tokens_override,
             )
             gen.set_output(
                 llm_result["answer"],

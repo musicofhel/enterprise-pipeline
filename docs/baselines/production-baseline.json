@@ -1,6 +1,7 @@
 {
   "date": "2026-02-26",
   "pipeline_version": "1.0.0",
+  "wave": 8,
   "stages_real": 10,
   "stages_mocked": 0,
   "stages_skipped": 2,
@@ -14,24 +15,36 @@
     "embedding_dimensions": 384
   },
   "test_results": {
-    "unit_tests_passed": 294,
-    "unit_tests_skipped": 0,
-    "integration_tests_passed": 1,
-    "integration_tests_skipped": 4,
-    "eval_tests_skipped": 21
+    "total_passed": 374,
+    "total_skipped": 21,
+    "skip_reason": "DeepEval needs OPENROUTER_API_KEY"
   },
   "performance": {
-    "note": "Baselines from smoke load test (10 queries, concurrency 1)",
-    "latency_p50_ms": 4568,
-    "latency_p95_ms": 6479,
-    "latency_max_ms": 6479,
-    "throughput_rps": 0.26,
-    "cost_per_query_mean_usd": 0.001,
+    "note": "Post-Wave 8 optimization baselines",
+    "routing_accuracy": "90% (18/20 labeled queries)",
+    "routing_scoring": "max-sim (was mean-sim, 40%)",
+    "routing_confidence_threshold": 0.5,
+    "latency_p95_projected_ms": 2000,
+    "latency_savings": "conditional expansion skips LLM call for high-confidence queries",
+    "expansion_skip_rate": "100% at confidence_threshold=0.75",
+    "model_routing": {
+      "fast_tier": "anthropic/claude-haiku-4-5 (512 tokens)",
+      "standard_tier": "anthropic/claude-sonnet-4-5 (1024 tokens)",
+      "complex_tier": "anthropic/claude-sonnet-4-5 (2048 tokens)"
+    },
+    "cost_reduction_estimate": "20-40% via Haiku for simple queries",
     "safety_overhead_ms": 0.07,
     "routing_overhead_ms": 3.52,
     "retrieval_latency_ms": 8.99,
     "hhem_overhead_ms": 343.79,
     "total_non_llm_ms": 473
+  },
+  "synthetic_dataset": {
+    "total_cases": 77,
+    "source_documents": 8,
+    "out_of_scope_cases": 8,
+    "hhem_scored": false,
+    "path": "golden_dataset/synthetic_tests.jsonl"
   },
   "security": {
     "injection_block_rate": "6/8 (75%)",
@@ -47,8 +60,8 @@
     "edge_case_tests": "5/5 PASS"
   },
   "issues": {
-    "closed": ["002", "003", "005", "006"],
-    "open": ["001", "004", "007", "008", "009", "010", "011", "012", "013"],
+    "closed": ["002", "003", "004", "005", "006"],
+    "open": ["001", "007", "008", "009", "010", "011", "012", "013"],
     "blocking_production": ["001 (Cohere rerank)", "010 (Lakera L2)"]
   }
 }

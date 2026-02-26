@@ -215,4 +215,6 @@ def get_orchestrator() -> PipelineOrchestrator:
         feature_flags=feature_flags,
         shadow_runner=shadow_runner,
         retrieval_canary=retrieval_canary,
+        expansion_config=config.query_expansion if config.query_expansion.enabled else None,
+        model_routing_config=config.generation.model_routing if config.generation.model_routing.enabled else None,
     )

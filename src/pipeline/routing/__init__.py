@@ -165,7 +165,7 @@ class QueryRouter:
           - ``route``: the chosen route name
           - ``confidence``: similarity score (0-1)
           - ``matched_utterances``: top matching utterances from the winning route
-          - ``scores``: per-route average similarity
+          - ``scores``: per-route max similarity
           - ``skipped``: always ``False`` (this is a real router, not the stub)
         """
         if not self._initialized:
@@ -175,7 +175,9 @@ class QueryRouter:
         query_vectors = await self._embed_fn([query])
         query_vec = np.array(query_vectors[0], dtype=np.float32)
 
-        # Score each route by average cosine similarity to its utterances.
+        # Score each route by MAX cosine similarity to its utterances.
+        # Max-sim is the standard approach for intent classification: the query
+        # only needs to match ONE example utterance well, not all of them.
         route_scores: dict[str, float] = {}
         route_top_utterances: dict[str, list[tuple[float, str]]] = {}
 
@@ -190,8 +192,8 @@ class QueryRouter:
                 _cosine_similarity(query_vec, route_vecs[i])
                 for i in range(route_vecs.shape[0])
             ])
-            avg_sim = float(np.mean(similarities))
-            route_scores[route.name] = avg_sim
+            max_sim = float(np.max(similarities))
+            route_scores[route.name] = max_sim
 
             # Keep top-3 utterances by similarity for explainability.
             top_indices = np.argsort(similarities)[::-1][:3]
@@ -200,7 +202,7 @@ class QueryRouter:
                 for idx in top_indices
             ]
 
-        # Pick the route with the highest average similarity.
+        # Pick the route with the highest max similarity.
         best_route = max(route_scores, key=route_scores.get)  # type: ignore[arg-type]
         # Clamp to [0, 1] — cosine similarity can be negative with dissimilar vectors
         best_confidence = max(0.0, min(1.0, route_scores[best_route]))

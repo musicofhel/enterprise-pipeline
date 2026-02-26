@@ -33,7 +33,7 @@ class RoutingConfig(BaseModel):
     embedding_model: str = "all-MiniLM-L6-v2"
     embedding_provider: str = "local"
     default_route: str = "rag_knowledge_base"
-    confidence_threshold: float = 0.15
+    confidence_threshold: float = 0.5
 
 
 class QueryExpansionConfig(BaseModel):
@@ -41,6 +41,8 @@ class QueryExpansionConfig(BaseModel):
     method: str = "multi_query"
     num_queries: int = 3
     model: str = "anthropic/claude-haiku-4-5"
+    mode: str = "conditional"  # "always" | "conditional" | "never"
+    confidence_threshold: float = 0.75  # skip expansion when routing confidence >= this
 
 
 class InjectionDetectionConfig(BaseModel):
@@ -55,6 +57,21 @@ class SafetyConfig(BaseModel):
     pii_action: str = "redact"
 
 
+class ModelTierConfig(BaseModel):
+    model: str
+    max_output_tokens: int
+
+
+class ModelRoutingConfig(BaseModel):
+    enabled: bool = True
+    tiers: dict[str, ModelTierConfig] = Field(default_factory=lambda: {
+        "fast": ModelTierConfig(model="anthropic/claude-haiku-4-5", max_output_tokens=512),
+        "standard": ModelTierConfig(model="anthropic/claude-sonnet-4-5", max_output_tokens=1024),
+        "complex": ModelTierConfig(model="anthropic/claude-sonnet-4-5", max_output_tokens=2048),
+    })
+    force_model: str | None = None  # Override: force all traffic to one model
+
+
 class GenerationConfig(BaseModel):
     provider: str = "openrouter"
     base_url: str = "https://openrouter.ai/api/v1"
@@ -62,6 +79,7 @@ class GenerationConfig(BaseModel):
     temperature: float = 0.1
     max_output_tokens: int = 1000
     fallback_model: str = "anthropic/claude-haiku-4-5"
+    model_routing: ModelRoutingConfig = Field(default_factory=ModelRoutingConfig)
 
 
 class HallucinationConfig(BaseModel):
