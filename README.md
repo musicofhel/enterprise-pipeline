@@ -4,18 +4,50 @@ Production-grade RAG (Retrieval-Augmented Generation) pipeline built in 3 phases
 
 ## Architecture
 
+```mermaid
+flowchart TD
+    Client["Client Request\nPOST /api/v1/query"] --> Auth["auth.py\nAPI Key → Role\n5 roles, 13 permissions"]
+    Auth --> DI["deps.py\n@lru_cache DI container"]
+    DI --> Orch["PipelineOrchestrator.query()"]
+
+    subgraph "12-Stage Pipeline"
+        Orch --> S1["1. Input Safety\nL1 regex (15 patterns) + PII (8 types)\n+ Lakera Guard L2 (optional)"]
+        S1 -->|blocked| Early["Early Return\n(safety violation)"]
+        S1 -->|passed| S2["2. Query Routing\nall-MiniLM-L6-v2 (local CPU)\nmax-sim cosine scoring"]
+        S2 --> S3["3. Query Expansion\nConditional: skip if confidence ≥ 0.75\nElse: 3 variants via Claude Haiku"]
+        S3 --> S4["4. Retrieval\nconcurrent asyncio.gather()\nQdrant top-20 per query"]
+        S4 --> S5["5. Deduplication\ncosine similarity at 0.95"]
+        S5 --> S6["6. Reranking\nCohere API (or passthrough fallback)"]
+        S6 --> S7["7. Compression\nBM25 sub-scoring\n+ token budget (4000 max)"]
+        S7 --> S8["8. Generation\nOpenRouter LLM\nSmart model routing (Haiku/Sonnet)"]
+        S8 --> S9["9. Hallucination Check\nHHEM CPU inference\npass ≥ 0.85 / warn ≥ 0.70"]
+        S9 --> S10["10. Output Schema\nPer-route JSON validation\n(not yet wired — Issue #013)"]
+        S10 --> S11["11. Tracing\nLangfuse or local JSON\nspans + scores + metadata"]
+        S11 --> S12["12. Instrumentation\nPrometheus metrics\n+ shadow mode fire-and-forget"]
+    end
+
+    S12 --> Response["QueryResponse\nanswer, trace_id, sources,\nmetadata, fallback flag"]
+
+    subgraph "Observability Stack"
+        Prom["Prometheus\n34 metrics, 8 groups"]
+        Graf["Grafana\n5 rows, 19 panels"]
+        Canary["Retrieval Canary\np50/p95 alerts"]
+        Drift["Embedding Drift\ncentroid shift monitoring"]
+        Eval["Daily Ragas Eval\nfaithfulness, precision, relevancy"]
+        Prom --> Graf
+    end
+
+    subgraph "Compliance Layer"
+        Audit["Audit Log (WORM)\nimmutable JSON"]
+        Delete["Deletion Service\nvectors + traces + feedback"]
+        Retain["Retention Checker\nTTL-based purge"]
+    end
+
+    S11 -.-> Prom
+    S11 -.-> Audit
 ```
-User Request
-  -> Input Safety (L1 regex injection + PII detection; optional Lakera Guard L2)
-  -> Query Routing (local sentence-transformers, all-MiniLM-L6-v2, YAML routes)
-  -> Query Expansion (optional -- multi-query via OpenRouter Claude Haiku)
-  -> Retrieval (Qdrant + cosine dedup + Cohere rerank + RRF)
-  -> Context Compression (BM25 sub-scoring + token budget enforcement)
-  -> Generation (OpenRouter -- Claude Sonnet 4.5 default, Haiku fallback)
-  -> Output Quality (HHEM hallucination check -- real CPU inference, no API key)
-  -> Observability (Langfuse tracing + structlog JSON logging + Prometheus metrics)
-User Response
-```
+
+**[Full architecture doc with 6 diagrams, file tree, and design decisions →](ARCHITECTURE.md)**
 
 ## Quick Start
 
@@ -171,8 +203,9 @@ environments/              # Environment-specific config overlays
 | 5    | Deployment & Experimentation       | 283   |
 | 6    | Observability & Monitoring         | 318   |
 | 7    | Data Flywheel & Continuous Improvement | 352 |
+| 8    | Performance & Optimization             | 374 |
 
-All 7 waves complete. 10/12 pipeline stages run real logic. 2 stages skipped without API keys (Cohere rerank, Lakera L2).
+All 8 waves complete. 374 tests passing, 21 skipped. 10/12 pipeline stages run real logic. 2 stages skipped without API keys (Cohere rerank, Lakera L2).
 
 ## Documentation
 
