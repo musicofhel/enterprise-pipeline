@@ -7,39 +7,55 @@ Production-grade RAG (Retrieval-Augmented Generation) pipeline built in Python w
 ### Diagram 1: High-Level System Architecture
 
 ```mermaid
-flowchart TD
+---
+config:
+  flowchart:
+    useMaxWidth: true
+---
+flowchart LR
     Client["Client Request\nPOST /api/v1/query"] --> Auth["auth.py\nAPI Key → Role\n5 roles, 13 permissions"]
     Auth --> DI["deps.py\n@lru_cache DI container"]
     DI --> Orch["PipelineOrchestrator.query()"]
 
-    subgraph "12-Stage Pipeline"
-        Orch --> S1["1. Input Safety\nL1 regex (15 patterns) + PII (8 types)\n+ Lakera Guard L2 (optional)"]
+    subgraph SAFETY["1–2: Safety & Routing"]
+        S1["1. Input Safety\nL1 regex (15 patterns)\nPII (8 types)\nLakera Guard L2 (optional)"]
         S1 -->|blocked| Early["Early Return\n(safety violation)"]
         S1 -->|passed| S2["2. Query Routing\nall-MiniLM-L6-v2 (local CPU)\nmax-sim cosine scoring"]
-        S2 --> S3["3. Query Expansion\nConditional: skip if confidence ≥ 0.75\nElse: 3 variants via Claude Haiku"]
-        S3 --> S4["4. Retrieval\nconcurrent asyncio.gather()\nQdrant top-20 per query"]
-        S4 --> S5["5. Deduplication\ncosine similarity at 0.95"]
-        S5 --> S6["6. Reranking\nCohere API (or passthrough fallback)"]
-        S6 --> S7["7. Compression\nBM25 sub-scoring\n+ token budget (4000 max)"]
-        S7 --> S8["8. Generation\nOpenRouter LLM\nSmart model routing (Haiku/Sonnet)"]
-        S8 --> S9["9. Hallucination Check\nHHEM CPU inference\npass ≥ 0.85 / warn ≥ 0.70"]
-        S9 --> S10["10. Output Schema\nPer-route JSON validation\n(not yet wired — Issue #013)"]
-        S10 --> S11["11. Tracing\nLangfuse or local JSON\nspans + scores + metadata"]
-        S11 --> S12["12. Instrumentation\nPrometheus metrics\n+ shadow mode fire-and-forget"]
     end
 
+    subgraph RETRIEVAL["3–7: Retrieval & Compression"]
+        S3["3. Query Expansion\nConditional: skip if confidence ≥ 0.75\nElse: 3 variants via Claude Haiku"]
+        S3 --> S4["4. Retrieval\nconcurrent asyncio.gather()\nQdrant top-20 per query"]
+        S4 --> S5["5. Dedup\ncosine 0.95"]
+        S5 --> S6["6. Rerank\nCohere or passthrough"]
+        S6 --> S7["7. Compression\nBM25 + token budget\n4000 max"]
+    end
+
+    subgraph GENERATION["8–10: Generation & Quality"]
+        S8["8. Generation\nOpenRouter LLM\nSmart model routing\n(Haiku/Sonnet)"]
+        S8 --> S9["9. Hallucination\nHHEM CPU inference\npass ≥ 0.85 / warn ≥ 0.70"]
+        S9 --> S10["10. Output Schema\nPer-route JSON validation"]
+    end
+
+    subgraph OBSERVE["11–12: Tracing & Metrics"]
+        S11["11. Tracing\nLangfuse or local JSON\nspans + scores + metadata"]
+        S11 --> S12["12. Instrumentation\nPrometheus metrics\nshadow mode fire-and-forget"]
+    end
+
+    Orch --> S1
+    S2 --> S3
+    S7 --> S8
+    S10 --> S11
     S12 --> Response["QueryResponse\nanswer, trace_id, sources,\nmetadata, fallback flag"]
 
-    subgraph "Observability Stack"
-        Prom["Prometheus\n34 metrics, 8 groups"]
-        Graf["Grafana\n5 rows, 19 panels"]
+    subgraph OBSERVABILITY["Observability Stack"]
+        Prom["Prometheus\n34 metrics, 8 groups"] --> Graf["Grafana\n5 rows, 19 panels"]
         Canary["Retrieval Canary\np50/p95 alerts"]
-        Drift["Embedding Drift\ncentroid shift monitoring"]
+        Drift["Embedding Drift\ncentroid shift"]
         Eval["Daily Ragas Eval\nfaithfulness, precision, relevancy"]
-        Prom --> Graf
     end
 
-    subgraph "Compliance Layer"
+    subgraph COMPLIANCE["Compliance Layer"]
         Audit["Audit Log (WORM)\nimmutable JSON"]
         Delete["Deletion Service\nvectors + traces + feedback"]
         Retain["Retention Checker\nTTL-based purge"]
@@ -52,8 +68,13 @@ flowchart TD
 ### Diagram 2: Module Dependency Graph
 
 ```mermaid
+---
+config:
+  flowchart:
+    useMaxWidth: true
+---
 flowchart LR
-    subgraph "Public API"
+    subgraph API["Public API"]
         main["main.py\nFastAPI factory"]
         router["api/router.py"]
         query_ep["api/v1/query.py"]
@@ -63,45 +84,45 @@ flowchart LR
         health_ep["api/v1/health.py"]
     end
 
-    subgraph "Wiring"
+    subgraph WIRING["Wiring"]
         auth["api/auth.py\nRBAC"]
         deps["api/deps.py\nDI container"]
     end
 
-    subgraph "Config"
+    subgraph CONFIG["Config"]
         settings["config/settings.py\nPydantic env vars"]
         pipeline_cfg["config/pipeline_config.py\nYAML + env overlays"]
     end
 
-    subgraph "Models"
+    subgraph MODELS["Models"]
         schemas["models/schemas.py"]
         rbac["models/rbac.py"]
         audit_m["models/audit.py"]
         metadata_m["models/metadata.py"]
     end
 
-    subgraph "Pipeline"
-        orch["pipeline/orchestrator.py"]
-        inject["safety/injection_detector.py"]
-        pii["safety/pii_detector.py"]
-        lakera["safety/lakera_guard.py"]
+    subgraph PIPELINE["Pipeline"]
+        orch["orchestrator.py"]
+        inject["injection_detector.py"]
+        pii["pii_detector.py"]
+        lakera["lakera_guard.py"]
         routing["routing/__init__.py"]
-        vstore["retrieval/vector_store.py"]
-        embed_svc["retrieval/local_embeddings.py"]
-        expander["retrieval/query_expander.py"]
-        dedup["retrieval/deduplication.py"]
-        rrf["retrieval/reciprocal_rank_fusion.py"]
-        meta_val["retrieval/metadata_validator.py"]
-        reranker["reranking/cohere_reranker.py"]
-        bm25["compression/bm25_compressor.py"]
-        token_bgt["compression/token_budget.py"]
-        llm["generation/llm_client.py"]
-        model_rt["generation/model_router.py"]
+        vstore["vector_store.py"]
+        embed_svc["local_embeddings.py"]
+        expander["query_expander.py"]
+        dedup["deduplication.py"]
+        rrf["reciprocal_rank_fusion.py"]
+        meta_val["metadata_validator.py"]
+        reranker["cohere_reranker.py"]
+        bm25["bm25_compressor.py"]
+        token_bgt["token_budget.py"]
+        llm["llm_client.py"]
+        model_rt["model_router.py"]
         hhem["quality/__init__.py"]
         out_schema["output_schema.py"]
     end
 
-    subgraph "Observability"
+    subgraph OBS["Observability"]
         tracing["tracing.py"]
         audit_log["audit_log.py"]
         logging_m["logging.py"]
@@ -112,20 +133,20 @@ flowchart LR
         daily_eval["daily_eval.py"]
     end
 
-    subgraph "Experimentation"
+    subgraph EXP["Experimentation"]
         flags["feature_flags.py"]
         shadow["shadow_mode.py"]
         analysis["analysis.py"]
     end
 
-    subgraph "Flywheel"
+    subgraph FLY["Flywheel"]
         triage["failure_triage.py"]
         annotate["annotation.py"]
         dataset["dataset_manager.py"]
         eval_exp["eval_expansion.py"]
     end
 
-    subgraph "Services"
+    subgraph SVC["Services"]
         del_svc["deletion_service.py"]
         fb_svc["feedback_service.py"]
         ret_chk["retention_checker.py"]
@@ -173,32 +194,45 @@ flowchart LR
 ### Diagram 3: Request Pipeline Data Flow
 
 ```mermaid
-flowchart TD
-    REQ["QueryRequest\n{query, user_id, tenant_id, session_id}"] --> TRACE["create_trace(variant)\nLangfuse or LocalTrace"]
+---
+config:
+  flowchart:
+    useMaxWidth: true
+---
+flowchart LR
+    REQ["QueryRequest\n{query, user_id,\ntenant_id, session_id}"] --> TRACE["create_trace(variant)\nLangfuse or LocalTrace"]
     TRACE --> LOG["bind_trace_context()\nstructlog adds trace_id"]
 
-    LOG --> SAFETY["SafetyChecker.check_input()"]
-    SAFETY --> INJ["InjectionDetector\n15 regex patterns\n9 attack vectors"]
-    SAFETY --> PII["PIIDetector\n8 types: email, SSN,\nphone, credit card, ..."]
-    SAFETY --> LAK["LakeraGuard (optional)\nML-based L2"]
+    subgraph SAFETY_CHECK["Safety Check"]
+        direction TB
+        SAFETY["SafetyChecker.check_input()"]
+        SAFETY --> INJ["InjectionDetector\n15 regex patterns\n9 attack vectors"]
+        SAFETY --> PII["PIIDetector\n8 types: email, SSN,\nphone, credit card, ..."]
+        SAFETY --> LAK["LakeraGuard (optional)\nML-based L2"]
+        INJ & PII & LAK --> SAFE_RESULT{passed?}
+    end
 
-    INJ & PII & LAK --> SAFE_RESULT{passed?}
+    LOG --> SAFETY
     SAFE_RESULT -->|No| BLOCK["Return blocked response\nlog safety event"]
-    SAFE_RESULT -->|Yes| ROUTE["QueryRouter.route()"]
 
-    ROUTE --> EMBED_Q["embed_query()\nall-MiniLM-L6-v2\n384-dim, local CPU"]
-    EMBED_Q --> COSINE["max-sim cosine scoring\nvs 5 route utterance sets"]
-    COSINE --> CONF{confidence ≥ 0.5?}
-    CONF -->|No| DEFAULT["default_route\n(rag_knowledge_base)"]
-    CONF -->|Yes| MATCHED["matched route\n+ confidence score"]
+    subgraph ROUTING["Routing"]
+        direction TB
+        ROUTE["QueryRouter.route()"]
+        ROUTE --> EMBED_Q["embed_query()\nall-MiniLM-L6-v2\n384-dim, local CPU"]
+        EMBED_Q --> COSINE["max-sim cosine scoring\nvs 5 route utterance sets"]
+        COSINE --> CONF{confidence ≥ 0.5?}
+        CONF -->|No| DEFAULT["default_route\n(rag_knowledge_base)"]
+        CONF -->|Yes| MATCHED["matched route\n+ confidence score"]
+        DEFAULT & MATCHED --> DISPATCH{route type}
+    end
 
-    DEFAULT & MATCHED --> DISPATCH{route type}
-    DISPATCH -->|rag_knowledge_base| RAG["Full RAG Path"]
+    SAFE_RESULT -->|Yes| ROUTE
     DISPATCH -->|direct_llm| DIRECT["Skip retrieval\nDirect LLM call"]
     DISPATCH -->|escalate_human| ESCALATE["Return fallback=true\nHuman handoff"]
 
-    subgraph "RAG Path (stages 3-7)"
-        RAG --> EXPAND{confidence ≥ 0.75?}
+    subgraph RAG_PATH["RAG Path (stages 3–7)"]
+        direction TB
+        EXPAND{confidence ≥ 0.75?}
         EXPAND -->|Yes| SKIP_EXP["Skip expansion\nuse original query only"]
         EXPAND -->|No| MULTI["QueryExpander\n3 variants via Claude Haiku"]
         SKIP_EXP & MULTI --> CONCURRENT["asyncio.gather()\nembed + search per query"]
@@ -210,42 +244,59 @@ flowchart TD
         BM25 --> BUDGET["TokenBudgetEnforcer\ndrop until ≤ 4000 tokens"]
     end
 
-    BUDGET --> TIER["ModelRouter.resolve_model()\nFAST → Haiku\nSTANDARD/COMPLEX → Sonnet"]
+    DISPATCH -->|rag_knowledge_base| EXPAND
+
+    subgraph GEN_QUALITY["Generation & Quality"]
+        direction TB
+        TIER["ModelRouter.resolve_model()\nFAST → Haiku\nSTANDARD/COMPLEX → Sonnet"]
+        TIER --> GEN["LLMClient.generate()\nOpenRouter (AsyncOpenAI SDK)\nsystem prompt + context"]
+        GEN --> HHEM["HallucinationChecker.check()\nVectara HHEM, CPU inference\nmax aggregation across chunks"]
+        HHEM --> SCORE{score}
+        SCORE -->|"≥ 0.85"| PASS["PASS — return answer"]
+        SCORE -->|"0.70–0.85"| WARN["WARN — answer + disclaimer"]
+        SCORE -->|"< 0.70"| FAIL["FAIL — fallback response"]
+    end
+
+    BUDGET --> TIER
     DIRECT --> TIER
-    TIER --> GEN["LLMClient.generate()\nOpenRouter (AsyncOpenAI SDK)\nsystem prompt + context"]
 
-    GEN --> HHEM["HallucinationChecker.check()\nVectara HHEM, CPU inference\nmax aggregation across chunks"]
-    HHEM --> SCORE{score}
-    SCORE -->|"≥ 0.85"| PASS["PASS — return answer"]
-    SCORE -->|"0.70-0.85"| WARN["WARN — return answer\n+ disclaimer"]
-    SCORE -->|"< 0.70"| FAIL["FAIL — fallback response\nanswer suppressed"]
+    subgraph FINALIZE["Finalize"]
+        direction TB
+        INSTRUMENT["PipelineInstrumentation\nPrometheus counters/histograms"]
+        INSTRUMENT --> SHADOW["ShadowRunner.maybe_run()\nasyncio.create_task()"]
+        SHADOW --> SAVE["trace.save_local()\nJSON to traces/local/"]
+        SAVE --> FLUSH["tracing.flush()\nsend to Langfuse (if enabled)"]
+    end
 
-    PASS & WARN & FAIL --> INSTRUMENT["PipelineInstrumentation\nPrometheus counters/histograms"]
-    INSTRUMENT --> SHADOW["ShadowRunner.maybe_run()\nasyncio.create_task()\nfire-and-forget"]
-    SHADOW --> SAVE["trace.save_local()\nJSON to traces/local/"]
-    SAVE --> FLUSH["tracing.flush()\nsend to Langfuse (if enabled)"]
+    PASS & WARN & FAIL --> INSTRUMENT
     FLUSH --> RESP["QueryResponse"]
 ```
 
 ### Diagram 4: Observability & Monitoring Stack
 
 ```mermaid
-flowchart TD
-    subgraph "Data Sources"
+---
+config:
+  flowchart:
+    useMaxWidth: true
+---
+flowchart LR
+    subgraph SOURCES["Data Sources"]
+        direction TB
         ORCH["Pipeline Orchestrator\n(every query)"]
         TRACES["Local Trace Files\ntraces/local/*.json"]
         QDRANT_M["Qdrant Vectors\nembedding samples"]
     end
 
-    subgraph "Collection Layer"
+    subgraph COLLECT["Collection Layer"]
+        direction TB
         INSTR["PipelineInstrumentation\nStatic methods per stage"]
         TRACE_SVC["TracingService\nLangfuse SDK or LocalTrace"]
         AUDIT["AuditLogService\nWORM JSON files"]
         STRUCT["structlog\nJSON logging + trace_id"]
     end
 
-    subgraph "Prometheus Metrics (34 total)"
-        direction LR
+    subgraph PROM_METRICS["Prometheus Metrics (34 total)"]
         M_PIPE["Pipeline\nrequests, errors,\nduration, active"]
         M_SAFE["Safety\ninjection blocks,\nPII detections"]
         M_HALL["Hallucination\nHHEM scores,\npass/warn/fail"]
@@ -256,20 +307,22 @@ flowchart TD
         M_EXP["Experiment\nassignments,\nvariant counts"]
     end
 
-    subgraph "Monitors"
-        EMB_MON["EmbeddingMonitor\ncentroid cosine drift\n(threshold: 0.15)\nspread change\n(threshold: 0.20)"]
-        RET_CAN["RetrievalCanary\nrolling window: 1000\nbaseline window: 7000\nCRITICAL: p50 drop >10%\nCRITICAL: empty rate >5%"]
-        DAILY["DailyEvalRunner\nRagas metrics via OpenRouter\nfaithfulness, precision,\nrelevancy"]
+    subgraph MONITORS["Monitors"]
+        direction TB
+        EMB_MON["EmbeddingMonitor\ncentroid cosine drift (0.15)\nspread change (0.20)"]
+        RET_CAN["RetrievalCanary\nrolling: 1000 / baseline: 7000\nCRITICAL: p50 drop >10%\nCRITICAL: empty rate >5%"]
+        DAILY["DailyEvalRunner\nRagas via OpenRouter\nfaithfulness, precision, relevancy"]
     end
 
-    subgraph "Dashboards"
-        PROM["Prometheus\nport 9090\nscrape /metrics"]
-        GRAFANA["Grafana\nport 3001\n5 rows, 19 panels"]
-        LANGFUSE["Langfuse\nport 3100\ntrace viewer"]
+    subgraph DASHBOARDS["Dashboards"]
+        direction TB
+        PROM["Prometheus\nport 9090, scrape /metrics"]
+        GRAFANA["Grafana\nport 3001, 5 rows, 19 panels"]
+        LANGFUSE["Langfuse\nport 3100, trace viewer"]
         PHOENIX["Arize Phoenix\nembedding projections"]
     end
 
-    subgraph "Alerting"
+    subgraph ALERTS["Alerting"]
         ALERT["11 Alert Playbooks\n7 CRITICAL + 4 WARN\nTrigger → Investigation\n→ Remediation → Escalation"]
     end
 
@@ -291,38 +344,54 @@ flowchart TD
 ### Diagram 5: Data Flywheel
 
 ```mermaid
-flowchart TD
-    subgraph "Phase 1: Triage (automated)"
+---
+config:
+  flowchart:
+    useMaxWidth: true
+---
+flowchart LR
+    subgraph PHASE1["Phase 1: Triage (automated)"]
+        direction TB
         TRACES["Local Trace Files\ntraces/local/*.json"] --> SCAN["FailureTriageService.scan()\nLast N days of traces"]
-        SCAN --> CLASSIFY["Classify failures\n6 categories:\nretrieval_failure\nhallucination\nwrong_route\ncontext_gap\ncompression_loss\nother"]
+        SCAN --> CLASSIFY["Classify failures\n6 categories:\nretrieval_failure, hallucination,\nwrong_route, context_gap,\ncompression_loss, other"]
         CLASSIFY --> CLUSTER["Cluster similar failures\ngreedy cosine sim (0.7)\nvia embedding_service"]
         CLUSTER --> REPORT["Triage Report\nreports/triage-YYYY-WNN.json"]
         REPORT --> TASKS["AnnotationService.generate()\nCreate pending tasks\nannotations/pending/*.json"]
     end
 
-    subgraph "Human-in-the-Loop"
-        TASKS --> ANNOTATE["scripts/annotate.py\nnext → review → submit\nLabel: correct_answer,\nfailure_category, notes"]
+    subgraph HUMAN["Human-in-the-Loop"]
+        direction TB
+        ANNOTATE["scripts/annotate.py\nnext → review → submit\nLabel: correct_answer,\nfailure_category, notes"]
         ANNOTATE --> COMPLETED["annotations/completed/*.json"]
     end
 
-    subgraph "Phase 2: Import & Expand (automated)"
-        COMPLETED --> IMPORT["GoldenDatasetManager.import()\nEmbedding dedup (0.95 cosine)\nValidation + versioning"]
+    subgraph PHASE2["Phase 2: Import & Expand (automated)"]
+        direction TB
+        IMPORT["GoldenDatasetManager.import()\nEmbedding dedup (0.95 cosine)\nValidation + versioning"]
         IMPORT --> GOLDEN["golden_dataset/\nfaithfulness_tests.jsonl\npromptfoo_tests.jsonl\nmetadata.json (semver)"]
         GOLDEN --> EXPAND["EvalSuiteExpander\nAuto-generate eval entries\nCoverage report per category"]
         EXPAND --> COVERAGE["Gap Analysis\nWhich categories need\nmore test coverage?"]
     end
 
-    subgraph "Evaluation"
-        GOLDEN --> DEEPEVAL["DeepEval\nFaithfulness CI gate\n20+ golden cases"]
-        GOLDEN --> PROMPTFOO["Promptfoo\nA/B prompt comparison\nRegression gate (>2%)"]
-        GOLDEN --> RAGAS["Daily Ragas Eval\nfaithfulness, precision,\nrelevancy"]
+    subgraph EVAL["Evaluation"]
+        direction TB
+        DEEPEVAL["DeepEval\nFaithfulness CI gate\n20+ golden cases"]
+        PROMPTFOO["Promptfoo\nA/B prompt comparison\nRegression gate (>2%)"]
+        RAGAS["Daily Ragas Eval\nfaithfulness, precision,\nrelevancy"]
     end
 
-    subgraph "Weekly Automation"
+    subgraph WEEKLY["Weekly Automation"]
         CRON["scripts/run_weekly_flywheel.py"]
-        CRON -->|"Phase 1"| SCAN
-        CRON -->|"--continue (Phase 2)"| IMPORT
     end
+
+    TASKS --> ANNOTATE
+    COMPLETED --> IMPORT
+    GOLDEN --> DEEPEVAL
+    GOLDEN --> PROMPTFOO
+    GOLDEN --> RAGAS
+
+    CRON -->|"Phase 1"| SCAN
+    CRON -->|"--continue (Phase 2)"| IMPORT
 
     COVERAGE -.->|"identifies gaps"| ANNOTATE
     DEEPEVAL & PROMPTFOO & RAGAS -.->|"failures feed back"| TRACES
@@ -331,52 +400,59 @@ flowchart TD
 ### Diagram 6: Experimentation & A/B Testing
 
 ```mermaid
-flowchart TD
-    subgraph "Feature Flag System"
+---
+config:
+  flowchart:
+    useMaxWidth: true
+---
+flowchart LR
+    subgraph FLAGS["Feature Flag System"]
+        direction TB
         CONFIG["experiment_configs/flags.yaml\nvariants:\n  control: 0.9 weight\n  treatment_a: 0.1 weight\nuser_overrides + tenant_overrides"]
         CONFIG --> FFS["FeatureFlagService"]
         FFS --> HASH["Deterministic Assignment\nMD5(user_id)[:8] → int\nmod 10000 → [0,1) bucket"]
-        FFS --> OVERRIDE["Priority Resolution\n1. tenant override\n2. user override\n3. hash-based assignment\n4. default variant"]
+        FFS --> OVERRIDE["Priority Resolution\n1. tenant override\n2. user override\n3. hash-based\n4. default variant"]
     end
 
-    subgraph "Request Path"
+    subgraph REQUEST["Request Path"]
+        direction TB
         REQ["Incoming Query\n{user_id, tenant_id}"] --> RESOLVE["get_variant()\nresolve variant name"]
         RESOLVE --> TRACE["create_trace(variant=...)\nTag trace with variant"]
         TRACE --> PIPELINE["Run primary pipeline\n(control or treatment)"]
         PIPELINE --> RESPONSE["Return response"]
     end
 
-    subgraph "Shadow Mode"
-        RESPONSE --> SHADOW["ShadowRunner.maybe_run()"]
+    subgraph SHADOW_MODE["Shadow Mode"]
+        direction TB
+        SHADOW["ShadowRunner.maybe_run()"]
         SHADOW --> CHECKS{gates}
-        CHECKS -->|"enabled?"| EN
-        CHECKS -->|"budget ok?"| BUD
-        CHECKS -->|"circuit breaker?"| CB
-        CHECKS -->|"sample rate?"| SR
-        EN["shadow_mode.enabled"] --> FIRE
-        BUD["budget_limit_usd\n(in-memory tracking)"] --> FIRE
-        CB["latency < 3x primary\n(circuit breaker)"] --> FIRE
-        SR["10% sample rate"] --> FIRE
-        FIRE["asyncio.create_task()\nfire-and-forget"]
+        CHECKS -->|"enabled?"| EN["shadow_mode.enabled"]
+        CHECKS -->|"budget ok?"| BUD["budget_limit_usd\n(in-memory tracking)"]
+        CHECKS -->|"circuit breaker?"| CB["latency < 3x primary"]
+        CHECKS -->|"sample rate?"| SR["10% sample rate"]
+        EN & BUD & CB & SR --> FIRE["asyncio.create_task()\nfire-and-forget"]
         FIRE --> SHADOW_GEN["Re-run generation only\ncandidate model/prompt\nReuse retrieval results"]
         SHADOW_GEN --> SHADOW_TRACE["Save trace\nvariant='shadow'"]
     end
 
-    subgraph "Experiment Analysis"
+    subgraph ANALYSIS["Experiment Analysis"]
+        direction TB
         TRACES_DIR["traces/local/*.json\nGrouped by variant"] --> ANALYZER["ExperimentAnalyzer"]
         ANALYZER --> METRICS["Compute per-variant:\nfaithfulness mean\nlatency p50/p95\ncost total"]
         METRICS --> STATS["Statistical Tests\n(min 30 traces per variant)"]
-        STATS --> TTEST["Welch's t-test\np-value"]
-        STATS --> MANN["Mann-Whitney U\nnon-parametric"]
-        STATS --> COHEN["Cohen's d\neffect size"]
+        STATS --> TTEST["Welch's t-test"]
+        STATS --> MANN["Mann-Whitney U"]
+        STATS --> COHEN["Cohen's d"]
         TTEST & MANN & COHEN --> REC["Auto-Recommendation\npromote | regress | continue"]
     end
 
-    subgraph "Audit Trail"
-        RESOLVE --> AUDIT["AuditLogService\nEXPERIMENT_ASSIGNMENT event\nuser_id, tenant_id, variant"]
+    subgraph AUDIT_TRAIL["Audit Trail"]
+        AUDIT["AuditLogService\nEXPERIMENT_ASSIGNMENT event\nuser_id, tenant_id, variant"]
     end
 
     FFS --> RESOLVE
+    RESPONSE --> SHADOW
+    RESOLVE --> AUDIT
     SHADOW_TRACE --> TRACES_DIR
     TRACE --> TRACES_DIR
 ```

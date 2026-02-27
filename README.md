@@ -5,39 +5,55 @@ Production-grade RAG (Retrieval-Augmented Generation) pipeline built in 3 phases
 ## Architecture
 
 ```mermaid
-flowchart TD
+---
+config:
+  flowchart:
+    useMaxWidth: true
+---
+flowchart LR
     Client["Client Request\nPOST /api/v1/query"] --> Auth["auth.py\nAPI Key → Role\n5 roles, 13 permissions"]
     Auth --> DI["deps.py\n@lru_cache DI container"]
     DI --> Orch["PipelineOrchestrator.query()"]
 
-    subgraph "12-Stage Pipeline"
-        Orch --> S1["1. Input Safety\nL1 regex (15 patterns) + PII (8 types)\n+ Lakera Guard L2 (optional)"]
+    subgraph SAFETY["1–2: Safety & Routing"]
+        S1["1. Input Safety\nL1 regex (15 patterns)\nPII (8 types)\nLakera Guard L2 (optional)"]
         S1 -->|blocked| Early["Early Return\n(safety violation)"]
         S1 -->|passed| S2["2. Query Routing\nall-MiniLM-L6-v2 (local CPU)\nmax-sim cosine scoring"]
-        S2 --> S3["3. Query Expansion\nConditional: skip if confidence ≥ 0.75\nElse: 3 variants via Claude Haiku"]
-        S3 --> S4["4. Retrieval\nconcurrent asyncio.gather()\nQdrant top-20 per query"]
-        S4 --> S5["5. Deduplication\ncosine similarity at 0.95"]
-        S5 --> S6["6. Reranking\nCohere API (or passthrough fallback)"]
-        S6 --> S7["7. Compression\nBM25 sub-scoring\n+ token budget (4000 max)"]
-        S7 --> S8["8. Generation\nOpenRouter LLM\nSmart model routing (Haiku/Sonnet)"]
-        S8 --> S9["9. Hallucination Check\nHHEM CPU inference\npass ≥ 0.85 / warn ≥ 0.70"]
-        S9 --> S10["10. Output Schema\nPer-route JSON validation\n(not yet wired — Issue #013)"]
-        S10 --> S11["11. Tracing\nLangfuse or local JSON\nspans + scores + metadata"]
-        S11 --> S12["12. Instrumentation\nPrometheus metrics\n+ shadow mode fire-and-forget"]
     end
 
+    subgraph RETRIEVAL["3–7: Retrieval & Compression"]
+        S3["3. Query Expansion\nConditional: skip if confidence ≥ 0.75\nElse: 3 variants via Claude Haiku"]
+        S3 --> S4["4. Retrieval\nconcurrent asyncio.gather()\nQdrant top-20 per query"]
+        S4 --> S5["5. Dedup\ncosine 0.95"]
+        S5 --> S6["6. Rerank\nCohere or passthrough"]
+        S6 --> S7["7. Compression\nBM25 + token budget\n4000 max"]
+    end
+
+    subgraph GENERATION["8–10: Generation & Quality"]
+        S8["8. Generation\nOpenRouter LLM\nSmart model routing\n(Haiku/Sonnet)"]
+        S8 --> S9["9. Hallucination\nHHEM CPU inference\npass ≥ 0.85 / warn ≥ 0.70"]
+        S9 --> S10["10. Output Schema\nPer-route JSON validation"]
+    end
+
+    subgraph OBSERVE["11–12: Tracing & Metrics"]
+        S11["11. Tracing\nLangfuse or local JSON\nspans + scores + metadata"]
+        S11 --> S12["12. Instrumentation\nPrometheus metrics\nshadow mode fire-and-forget"]
+    end
+
+    Orch --> S1
+    S2 --> S3
+    S7 --> S8
+    S10 --> S11
     S12 --> Response["QueryResponse\nanswer, trace_id, sources,\nmetadata, fallback flag"]
 
-    subgraph "Observability Stack"
-        Prom["Prometheus\n34 metrics, 8 groups"]
-        Graf["Grafana\n5 rows, 19 panels"]
+    subgraph OBSERVABILITY["Observability Stack"]
+        Prom["Prometheus\n34 metrics, 8 groups"] --> Graf["Grafana\n5 rows, 19 panels"]
         Canary["Retrieval Canary\np50/p95 alerts"]
-        Drift["Embedding Drift\ncentroid shift monitoring"]
+        Drift["Embedding Drift\ncentroid shift"]
         Eval["Daily Ragas Eval\nfaithfulness, precision, relevancy"]
-        Prom --> Graf
     end
 
-    subgraph "Compliance Layer"
+    subgraph COMPLIANCE["Compliance Layer"]
         Audit["Audit Log (WORM)\nimmutable JSON"]
         Delete["Deletion Service\nvectors + traces + feedback"]
         Retain["Retention Checker\nTTL-based purge"]
